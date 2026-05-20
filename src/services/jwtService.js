@@ -15,12 +15,12 @@ export const generateAccessToken = (user) => {
             status: user.status
         },
         SECRET_KEY,
-        { expiresIn: '30d' }
+        { expiresIn: '15m' }
     );
 };
 
 export const generateForgotPasswordToken = (userId) => {
-    return jwt.sign({ id: userId }, SECRET_KEY, { expiresIn: '1h' });
+    return jwt.sign({ id: userId }, SECRET_KEY, { expiresIn: '15m' });
 };
 
 export const verifyToken = (token) => {
@@ -31,5 +31,26 @@ export const verifyToken = (token) => {
             throw new Error('Token đã hết hạn');
         }
         throw new Error('Token không hợp lệ');
+    }
+};
+
+export const generateRefreshToken = (user) => {
+    return jwt.sign(
+        {
+            id: user.id,
+        },
+        SECRET_KEY,
+        { expiresIn: '30d' }
+    );
+};
+
+export const verifyRefreshToken = (token) => {
+    try {
+        return jwt.verify(token, SECRET_KEY);
+    } catch (err) {
+        if (err.name === 'TokenExpiredError') {
+            throw new Error('Refresh token đã hết hạn');
+        }
+        throw new Error('Refresh token không hợp lệ');
     }
 };

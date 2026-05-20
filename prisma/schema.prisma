@@ -102,6 +102,7 @@ model users {
   type          users_type_enum   @default(FREE)
   status        users_status_enum @default(ACTIVATE)
   createdAt     DateTime          @default(now()) @db.Timestamp(6)
+  refreshToken  String?           @db.Text
   budgets       budgets[]
   categories    categories[]
   notifications notifications[]
