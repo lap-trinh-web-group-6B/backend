@@ -15,6 +15,6 @@ const PORT = process.env.PORT || 3000;
 
 
 app.listen(PORT, () => {
-    console.log(`[Server] Web App chạy ở API: http://localhost:${PORT}`);
+    console.log(`[Server] Web App Running: http://localhost:${PORT}`);
 });
 
