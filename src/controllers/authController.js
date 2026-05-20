@@ -2,7 +2,7 @@ import {prisma} from '../config/database.js';
 import {isValidEmail} from '../utils/validators.js';
 import {otpService} from '../services/otpService.js';
 import {jsonResponse} from '../utils/responseHelper.js';
-import {generateAccessToken, generateForgotPasswordToken} from "../services/jwtService.js";
+import {generateAccessToken, generateForgotPasswordToken, verifyToken} from '../services/jwtService.js';
 import * as argon2 from 'argon2';
 
 export const authController = {
@@ -170,5 +170,31 @@ export const authController = {
             return jsonResponse(res, 400, 'Lỗi hệ thống', {error: error.message});
         }
     },
+    resetPassword: async (req, res) => {
+        try {
+            const {forgotPasswordToken, password, confirmPassword} = req.body;
+            if (password !== confirmPassword) {
+                return jsonResponse(res, 400, 'Dữ liệu sai', {password: 'Mật khẩu và Xác nhận mật khẩu không khớp'});
+            }
+            const decodedData = verifyToken(forgotPasswordToken);
+            const user = await prisma.users.findUnique({
+                where: {
+                    id: decodedData.id,
+                },
+            });
+            if (!user) return jsonResponse(res, 400, 'Hỏng dữ liệu', {error: 'Không tìm thấy người dùng'});
+            await prisma.users.update({
+                where: {
+                    id: user.id,
+                },
+                data: {
+                    password: await argon2.hash(password),
+                },
+            });
+            return jsonResponse(res, 200, 'Đặt lại mật khẩu thành công', null);
+        } catch (error) {
+            return jsonResponse(res, 401, 'Token lỗi', {error: error.message || 'Yêu cầu không hợp lệ'});
+        }
+    }
 
 };
