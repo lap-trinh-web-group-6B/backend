@@ -2,7 +2,7 @@ import {prisma} from '../config/database.js';
 import {isValidEmail} from '../utils/validators.js';
 import {otpService} from '../services/otpService.js';
 import {jsonResponse} from '../utils/responseHelper.js';
-import {generateAccessToken} from "../services/jwtService.js";
+import {generateAccessToken, generateForgotPasswordToken} from "../services/jwtService.js";
 import * as argon2 from 'argon2';
 
 export const authController = {
@@ -124,5 +124,51 @@ export const authController = {
             return jsonResponse(res, 500, 'Lỗi hệ thống', {error: error.message});
         }
 
-    }
+    },
+    forgotPasswordSendOtp: async (req, res) => {
+        try {
+            const {email} = req.body;
+            if (!isValidEmail(email)) {
+                return jsonResponse(res, 400, 'Lỗi định dạng', {email: 'Định dạng email không hợp lệ'});
+            }
+            const user = await prisma.users.findUnique({
+                where: {
+                    email,
+                },
+            });
+            if (!user || user.status === 'CANCEL') {
+                return jsonResponse(res, 400, 'Không hợp lệ', {email: 'Email chưa đăng ký'});
+            }
+            if (user.status === 'BANNED') {
+                return jsonResponse(res, 403, 'Bị chặn', {email: 'Tài khoản đã bị cấm'});
+            }
+            await otpService.sendOtp(email);
+            return jsonResponse(res, 200, 'Yêu cầu đặt lại mật khẩu thành công. Vui lòng kiểm tra email', null);
+        } catch (error) {
+            return jsonResponse(res, 400, 'Hệ thống bận', {error: error.message});
+        }
+
+    },
+    forgotPasswordVerifyOtp: async (req, res) => {
+        try {
+            const {email, otp} = req.body;
+            if (!isValidEmail(email)) {
+                return jsonResponse(res, 400, 'Lỗi định dạng', {email: 'Định dạng email không hợp lệ'});
+            }
+            const isValid = await otpService.verifyOtp(email, otp);
+            if (!isValid) {
+                return jsonResponse(res, 400, 'Lỗi OTP', {otp: 'OTP không hợp lệ hoặc đã hết hạn'});
+            }
+            const user = await prisma.users.findUnique({
+                where: {
+                    email,
+                },
+            });
+            const fpToken = generateForgotPasswordToken(user.id);
+            return jsonResponse(res, 200, 'Xác minh OTP thành công', {forgotPasswordToken: fpToken});
+        } catch (error) {
+            return jsonResponse(res, 400, 'Lỗi hệ thống', {error: error.message});
+        }
+    },
+
 };

@@ -7,5 +7,9 @@ router.post('/register/send-otp', authController.registerSendOtp);
 router.post('/register/verify-otp', authController.registerVerifyOtp);
 router.post('/register/resend-otp', authController.registerResendOtp);
 router.post('/login', authController.login);
+router.post('/forgot-password/send-otp', authController.forgotPasswordSendOtp);
+router.post('/forgot-password/resend-otp', authController.forgotPasswordSendOtp);
+router.post('/forgot-password/verify-otp', authController.forgotPasswordVerifyOtp);
+
 
 export default router;
