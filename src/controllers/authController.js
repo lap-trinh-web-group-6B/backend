@@ -77,5 +77,17 @@ export const authController = {
         } catch (error) {
             return jsonResponse(res, 400, 'Lỗi đăng ký', {error: error.message});
         }
+    },
+    registerResendOtp: async (req, res) => {
+        try {
+            const {email} = req.body;
+            if (!email) return jsonResponse(res, 400, 'Thiếu dữ liệu', {email: 'Email là bắt buộc'});
+            if (!isValidEmail(email)) return jsonResponse(res, 400, 'Lỗi định dạng', {email: 'Định dạng email không hợp lệ'});
+
+            await otpService.sendOtp(email);
+            return jsonResponse(res, 200, 'Đã gửi lại OTP', null);
+        } catch (error) {
+            return jsonResponse(res, 400, 'Cảnh báo chống Spam', {error: error.message});
+        }
     }
 };
