@@ -89,5 +89,40 @@ export const authController = {
         } catch (error) {
             return jsonResponse(res, 400, 'Cảnh báo chống Spam', {error: error.message});
         }
+    },
+    login: async (req, res) => {
+        try {
+            const {email, password} = req.body;
+            if (!isValidEmail(email)) {
+                return jsonResponse(res, 400, 'Lỗi định dạng', {email: 'Định dạng email không hợp lệ'});
+            }
+            const user = await prisma.users.findUnique({
+                where: {
+                    email,
+                },
+            });
+            if (!user) {
+                return jsonResponse(res, 400, 'Lỗi xác thực', {email: 'Email chưa đăng ký'});
+            }
+            switch (user.status) {
+                case 'BANNED':
+                    return jsonResponse(res, 403, 'Bị chặn', {email: 'Tài khoản đã bị cấm'});
+                case 'CANCEL':
+                    return jsonResponse(res, 400, 'Lỗi xác thực', {email: 'Email chưa đăng ký'});
+                case 'DISABLE':
+                    // Theo nghiệp vụ, DISABLE vẫn có thể đăng nhập hoặc bạn có thể cấm
+                    break;
+            }
+            const isPasswordValid = await argon2.verify(user.password, password);
+            if (!isPasswordValid) {
+                return jsonResponse(res, 400, 'Sai thông tin', {password: 'Mật khẩu không đúng'});
+            }
+            const accessToken = generateAccessToken(user);
+            const {password: userPassword, syncId, createdAt, ...safeUser} = user;
+            return jsonResponse(res, 200, 'Đăng nhập thành công', {accessToken, user: safeUser});
+        } catch (error) {
+            return jsonResponse(res, 500, 'Lỗi hệ thống', {error: error.message});
+        }
+
     }
 };
