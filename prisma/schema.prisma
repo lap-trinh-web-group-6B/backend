@@ -86,14 +86,14 @@ model transactions {
   status            transactions_status_enum @default(ACTIVATE)
   transaction_date  DateTime                 @db.Timestamp(6)
   createdAt         DateTime                 @default(now()) @db.Timestamp(6)
-  wallets           wallets                  @relation(fields: [wallet_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_0b171330be0cb621f8d73b87a9e")
-  categories        categories               @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_c9e41213ca42d50132ed7ab2b0f")
-  users             users                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_e9acc6efa76de013e8c1553ed2b")
+  wallets           wallets                  @relation(fields: [wallet_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  categories        categories               @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users             users                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
 
 model users {
   id            Int               @id @default(autoincrement())
-  email         String            @db.VarChar
+  email         String            @unique @db.VarChar
   password      String            @db.VarChar
   syncId        String?           @db.VarChar
   avatar        String?           @db.VarChar

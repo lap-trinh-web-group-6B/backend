@@ -21,9 +21,12 @@
   "homepage": "https://github.com/lap-trinh-web-group-6B/backend#readme",
   "dependencies": {
     "@prisma/client": "^6.19.3",
+    "argon2": "^0.44.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "nodemon": "^3.1.14"
+    "jsonwebtoken": "^9.0.3",
+    "nodemon": "^3.1.14",
+    "resend": "^6.12.3"
   },
   "devDependencies": {
     "prisma": "^6.19.3"
