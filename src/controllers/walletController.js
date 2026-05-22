@@ -126,5 +126,94 @@ export const walletController = {
             return jsonResponse(res, 500, 'Lỗi server khi tạo ví mới', null);
         }
 
+    },
+    deleteWallet: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const walletId = req.params.id;
+            const wallet = await prisma.wallets.findUnique({
+                where: {
+                    id: Number(walletId),
+                },
+            });
+            if (!wallet) {
+                return jsonResponse(res, 404, 'Ví không tồn tại để xóa', null);
+            }
+            if (wallet.user_id !== userId) {
+                return jsonResponse(res, 403, 'Bạn không có quyền xoá ví của người khác', null);
+            }
+            await prisma.wallets.delete({
+                where: {
+                    id: wallet.id,
+                },
+            });
+
+            return jsonResponse(res, 200, 'Xóa ví thành công', null);
+        } catch (error) {
+            console.error('[WalletController] deleteWallet error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi xóa ví', null);
+        }
+    },
+    updateWallet: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const walletId = req.params.id;
+            const { name, type, balance, currency, status } = req.body;
+            const wallet = await prisma.wallets.findUnique({
+                where: {
+                    id: Number(walletId),
+                },
+            });
+            if (!wallet) {
+                return jsonResponse(res, 404, 'Ví không tồn tại', null);
+            }
+
+            if (wallet.user_id !== userId) {
+                return jsonResponse(res, 403, 'Không có quyền chỉnh sửa ví này', null);
+            }
+            // Check trùng tên nếu người dùng thay đổi name khác origin
+            if (name && name.trim().toLowerCase() !== wallet.name.toLowerCase()) {
+                const existingWallet = await prisma.wallets.findFirst({
+                    where: {
+                        user_id: userId,
+                        name: {
+                            equals: name.trim(),
+                            mode: 'insensitive',
+                        },
+                    },
+                });
+
+                if (existingWallet) {
+                    return jsonResponse(res, 400, 'Lỗi', { name: 'Tên ví đã tồn tại' });
+                }
+                wallet.name = name.trim();
+            }
+            if (type && ['CASH', 'BANK_ACCOUNT', 'E_WALLET'].includes(type.toUpperCase())) {
+                wallet.type = type.toUpperCase();
+            }
+            if (balance !== undefined && !isNaN(Number(balance)) && Number(balance) >= 0) {
+                wallet.balance = Number(balance);
+            }
+            if (status && ['ACTIVATE', 'DISABLED'].includes(status.toUpperCase())) {
+                wallet.status = status.toUpperCase();
+            }
+            if (currency) {
+                wallet.currency = currency;
+            }
+            await prisma.wallets.update({
+                where: {
+                    id: wallet.id,
+                },
+                data: wallet,
+            });;
+            return jsonResponse(res, 200, 'Thành công', wallet);
+        } catch (error) {
+            if (error.code === '23505') {
+                return jsonResponse(res, 400, 'Lỗi', { name: 'Tên ví đã tồn tại' });
+            }
+            console.error('[WalletController] updateWallet error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi cập nhật ví', null);
+        }
     }
+
 }
