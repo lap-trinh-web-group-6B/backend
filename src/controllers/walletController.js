@@ -77,5 +77,54 @@ export const walletController = {
             console.error('[WalletController] getWalletById error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi lấy thông tin ví', null);
         }
+    },
+    createWallet: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { name, type, balance, currency } = req.body;
+            if (!name || !type) {
+                return jsonResponse(res, 400, 'Lỗi', { message: 'Tên ví (name) và loại ví (type) là bắt buộc' });
+            }
+            if (!['CASH', 'BANK_ACCOUNT', 'E_WALLET'].includes(type.toUpperCase())) {
+                return jsonResponse(res, 400, 'Lỗi', { message: 'Loại ví (type) không hợp lệ' });
+            }
+            if (balance !== undefined && isNaN(Number(balance))) {
+                return jsonResponse(res, 400, 'Lỗi', { message: 'Số dư (balance) phải là một con số' });
+            }
+            if (balance !== undefined && Number(balance) < 0) {
+                return jsonResponse(res, 400, 'Lỗi', { message: 'Số dư (balance) không được âm' });
+            }
+            const existingWallet = await prisma.wallets.findFirst({
+                where: {
+                    user_id: userId,
+                    name: {
+                        equals: name,
+                        mode: 'insensitive',
+                    },
+                },
+            });
+            if (existingWallet) {
+                return jsonResponse(res, 400, 'Lỗi', { name: 'Tên ví đã tồn tại' });
+            }
+            const newWallet = await prisma.wallets.create({
+                data: {
+                    user_id: userId,
+                    name: name.trim(),
+                    type: type.toUpperCase(),
+                    balance: balance !== undefined ? Number(balance) : 0,
+                    currency: currency || 'VND',
+                    status: 'ACTIVATE',
+                },
+            });
+            return jsonResponse(res, 201, 'Thành công', newWallet);
+
+        } catch (error) {
+            if (error.code === 'P2002') {
+                return jsonResponse(res, 400, 'Lỗi', { name: 'Tên ví đã tồn tại' });
+            }
+            console.error('[WalletController] createWallet error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi tạo ví mới', null);
+        }
+
     }
 }
