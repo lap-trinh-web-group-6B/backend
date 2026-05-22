@@ -56,5 +56,26 @@ export const walletController = {
             console.error('[WalletController] getWallets error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi lấy danh sách ví', null);
         }
+    },
+    getWalletById: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const walletId = req.params.id;
+            const wallet = await prisma.wallets.findUnique({
+                where: {
+                    id: parseInt(walletId),
+                },
+            });
+            if (!wallet) {
+                return jsonResponse(res, 404, 'Ví không tồn tại', null);
+            }
+            if (wallet.user_id !== userId) {
+                return jsonResponse(res, 403, 'Bạn không có quyền truy cập ví này', null);
+            }
+            return jsonResponse(res, 200, 'Success', wallet);
+        } catch (error) {
+            console.error('[WalletController] getWalletById error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi lấy thông tin ví', null);
+        }
     }
 }
