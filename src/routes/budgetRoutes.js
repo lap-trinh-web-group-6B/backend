@@ -12,4 +12,5 @@ router.get('/:id', requireAuth, budgetController.getBudgetDetail);
 
 router.patch('/:id', requireAuth, budgetController.updateBudget);
 
+router.patch('/:id/complete', requireAuth, budgetController.completeBudget);
 export default router;

@@ -201,6 +201,46 @@ export const budgetController = {
             console.error('[Budget] updateBudget error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi cập nhật ngân sách', null);
         }
+    },
+    completeBudget: async (req, res) => {
+        try {
+            const budgetId = req.params.id;
+            const userId = req.user.id;
+            const budget = await prisma.budgets.findFirst({
+                where: {
+                    id: Number(budgetId),
+                    user_id: Number(userId)
+                }
+            });
+            if (!budget) {
+                return jsonResponse(res, 404, 'Không tìm thấy ngân sách', null);
+            }
+            if (budget.status !== 'ACTIVE') {
+                return jsonResponse(res, 400, 'Chỉ có thể hoàn thành ngân sách đang hoạt động', null);
+            }
+            const finalSpent = await calculateCurrentSpent(budget);
+            let resultStatus = 'EXACT';
+            if (finalSpent < Number(budget.amount_limit)) {
+                resultStatus = 'UNDER_BUDGET';
+            } else if (finalSpent > Number(budget.amount_limit)) {
+                resultStatus = 'OVER_BUDGET';
+            }
+            budget.status = 'COMPLETED';
+            budget.final_spent_amount = finalSpent;
+            budget.result_status = resultStatus;
+            budget.completion_date = new Date();
+            await prisma.budgets.update({
+                where: {
+                    id: Number(budget.id)
+                },
+                data: budget
+            });
+            return jsonResponse(res, 200, 'Đã hoàn thành và chốt ngân sách thành công', budget);
+        } catch (error) {
+            console.error('[Budget] completeBudget error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi hoàn thành ngân sách', null);
+        }
+
     }
 
 
