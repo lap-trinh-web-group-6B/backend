@@ -8,4 +8,6 @@ router.post('/', requireAuth, budgetController.createBudget);
 
 router.get('/', requireAuth, budgetController.getBudgets);
 
+router.get('/:id', requireAuth, budgetController.getBudgetDetail);
+
 export default router;

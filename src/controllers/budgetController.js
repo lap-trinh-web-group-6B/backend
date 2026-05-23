@@ -103,6 +103,38 @@ export const budgetController = {
         }
 
 
+    },
+    getBudgetDetail: async (req, res) => {
+        try {
+            const budgetId = req.params.id;
+            const userId = req.user.id;
+            const budget = await prisma.budgets.findFirst({
+                where: {
+                    id: Number(budgetId),
+                    user_id: Number(userId)
+                },
+                include: {
+                    categories: true
+                }
+            });
+            if (!budget) {
+                return jsonResponse(res, 404, 'Không tìm thấy ngân sách', null);
+            }
+            const currentSpent = await calculateCurrentSpent(budget);
+            const remaining = Number(budget.amount_limit) - currentSpent;
+            const percentageUsed = Number(budget.amount_limit) > 0 ? (currentSpent / Number(budget.amount_limit)) : 0;
+
+            const budgetWithProgress = {
+                ...budget,
+                current_spent: currentSpent,
+                remaining_budget: remaining,
+                percentage_used: percentageUsed
+            };
+            return jsonResponse(res, 200, 'Success', budgetWithProgress);
+        } catch (error) {
+            console.error('[Budget] getBudgetDetail error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi lấy chi tiết ngân sách', null);
+        }
     }
 
 
