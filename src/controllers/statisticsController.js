@@ -263,6 +263,77 @@ export const statisticsController = {
                 null
             );
         }
+    },
+    getIncomeVsExpense: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { from_date, to_date } = req.query;
+            const whereCondition = {
+                user_id: userId
+            };
+            if (from_date || to_date) {
+                whereCondition.transaction_date = {};
+                if (from_date) {
+                    whereCondition.transaction_date.gte = new Date(from_date);
+                }
+                if (to_date) {
+                    whereCondition.transaction_date.lte = new Date(to_date);
+                }
+            }
+            const stats = await prisma.transactions.groupBy({
+                by: ['category_id'],
+                where: whereCondition,
+                _sum: {
+                    amount: true
+                },
+                _count: {
+                    id: true
+                }
+            });
+            const categoryIds = stats.map(item => item.category_id);
+            const categories = await prisma.categories.findMany({
+                where: {
+                    id: {
+                        in: categoryIds
+                    }
+                },
+                select: {
+                    id: true,
+                    type: true
+                }
+            });
+            const categoryMap = {};
+            categories.forEach(category => {
+                categoryMap[category.id] = category.type;
+            });
+            const data = {
+                INCOME: {
+                    total_amount: 0,
+                    transaction_count: 0
+                },
+                EXPENSE: {
+                    total_amount: 0,
+                    transaction_count: 0
+                }
+            };
+            stats.forEach(stat => {
+                const type = categoryMap[stat.category_id];
+
+                if (type === 'INCOME' || type === 'EXPENSE') {
+                    data[type].total_amount += parseFloat(stat._sum.amount || 0);
+                    data[type].transaction_count += stat._count.id || 0;
+                }
+            });
+            return jsonResponse(res, 200, 'Success', data);
+        } catch (error) {
+            console.error('[Error] getIncomeVsExpense:', error);
+            return jsonResponse(
+                res,
+                500,
+                'Lỗi server khi lấy so sánh thu chi',
+                null
+            );
+        }
     }
 
 
