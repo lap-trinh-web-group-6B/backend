@@ -191,6 +191,101 @@ export const categoryController = {
             console.error('[Category] updateCategory error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi cập nhật danh mục', null);
         }
+    },
+    deleteCategory: async (req, res) => {
+
+        try {
+            const userId = req.user.id;
+            const categoryId = Number(req.params.id);
+            await prisma.$transaction(async (tx) => {
+                const category = await tx.categories.findUnique({
+                    where: {
+                        id: categoryId
+                    }
+                });
+                if (!category) {
+                    throw {
+                        status: 404,
+                        message: 'Không tìm thấy danh mục'
+                    };
+                }
+                if (category.user_id === null) {
+                    throw {
+                        status: 403,
+                        message: 'Không thể xóa danh mục hệ thống'
+                    };
+                }
+                if (category.user_id !== userId) {
+                    throw {
+                        status: 403,
+                        message: 'Bạn không có quyền xóa danh mục này'
+                    };
+                }
+                const transactions = await tx.transactions.findMany({
+                    where: {
+                        category_id: categoryId,
+                        user_id: userId
+                    }
+                });
+                const walletUpdates = {};
+                for (const transaction of transactions) {
+                    const effect =
+                        category.type === 'EXPENSE' ? -1 : 1;
+                    const adjustment =
+                        Number(transaction.amount) * effect;
+                    if (!walletUpdates[transaction.wallet_id]) {
+                        walletUpdates[transaction.wallet_id] = 0;
+                    }
+                    walletUpdates[transaction.wallet_id] -= adjustment;
+                }
+                for (const [walletId, adjustment] of Object.entries(walletUpdates)) {
+                    const wallet = await tx.wallets.findFirst({
+                        where: {
+                            id: Number(walletId),
+                            user_id: userId
+                        }
+                    });
+                    if (wallet) {
+
+                        await tx.wallets.update({
+                            where: {
+                                id: wallet.id
+                            },
+                            data: {
+                                balance:
+                                    Number(wallet.balance) + adjustment
+                            }
+                        });
+                    }
+                }
+                await tx.categories.delete({
+                    where: {
+                        id: categoryId
+                    }
+                });
+            });
+
+            return jsonResponse(
+                res,
+                200,
+                'Xóa danh mục và hoàn tiền ví thành công',
+                null
+            );
+
+        } catch (error) {
+
+            console.error(
+                '[Category] deleteCategory error:',
+                error
+            );
+
+            return jsonResponse(
+                res,
+                error.status || 500,
+                error.message || 'Lỗi server khi xóa danh mục',
+                null
+            );
+        }
     }
 
 

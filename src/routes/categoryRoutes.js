@@ -9,5 +9,6 @@ router.get('/', requireAuth, categoryController.getCategories);
 router.get('/:id', requireAuth, categoryController.getCategoryById);
 router.post('/', requireAuth, multerIconUpload, compressIconMiddleware, categoryController.createCategory);
 router.patch('/:id', requireAuth, multerIconUpload, compressIconMiddleware, categoryController.updateCategory);
+router.delete('/:id', requireAuth, categoryController.deleteCategory);
 
 export default router;
