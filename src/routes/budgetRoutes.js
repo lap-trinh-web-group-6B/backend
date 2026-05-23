@@ -6,4 +6,6 @@ const router = express.Router();
 
 router.post('/', requireAuth, budgetController.createBudget);
 
+router.get('/', requireAuth, budgetController.getBudgets);
+
 export default router;
