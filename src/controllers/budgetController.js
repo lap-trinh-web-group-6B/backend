@@ -84,7 +84,6 @@ export const budgetController = {
                     createdAt: 'desc'
                 }
             });
-            // Note: Tính toán chi tiêu thực tế cho các ngân sách đang ACTIVE
             const budgetsWithProgress = await Promise.all(budgets.map(async (budget) => {
                 const currentSpent = await calculateCurrentSpent(budget);
                 const remaining = Number(budget.amount_limit) - currentSpent;
