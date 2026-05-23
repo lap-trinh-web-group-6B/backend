@@ -215,6 +215,55 @@ export const statisticsController = {
                 null
             );
         }
+    },
+    getExpenseToBalanceRatio: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { from_date, to_date } = req.query;
+            const totalBalanceResult = await prisma.wallets.aggregate({
+                _sum: {
+                    balance: true
+                },
+                where: {
+                    user_id: userId
+                }
+            });
+            const transactionWhere = {
+                user_id: userId,
+                categories: {
+                    type: 'EXPENSE'
+                }
+            };
+            if (from_date || to_date) {
+                transactionWhere.transaction_date = {};
+                if (from_date) {
+                    transactionWhere.transaction_date.gte = new Date(from_date);
+                }
+                if (to_date) {
+                    transactionWhere.transaction_date.lte = new Date(to_date);
+                }
+            }
+            const totalExpenseResult = await prisma.transactions.aggregate({
+                _sum: {
+                    amount: true
+                },
+                where: transactionWhere
+            });
+            return jsonResponse(res, 200, 'Thành công', {
+                total_balance: parseFloat(totalBalanceResult._sum.balance || 0),
+                total_expense: parseFloat(totalExpenseResult._sum.amount || 0)
+            });
+
+        } catch (error) {
+            console.error('[Error] getExpenseToBalanceRatio:', error);
+            return jsonResponse(
+                res,
+                500,
+                'Lỗi server khi lấy tỷ lệ chi tiêu / số dư',
+                null
+            );
+        }
     }
+
 
 }

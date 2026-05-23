@@ -7,6 +7,7 @@ const router = express.Router();
 router.get('/general', requireAuth, statisticsController.getGeneralStats);
 router.get('/by-category', requireAuth, statisticsController.getStatsByCategory);
 router.get('/trend', requireAuth, statisticsController.getTrendStats);
+router.get('/expense-to-balance-ratio', requireAuth, statisticsController.getExpenseToBalanceRatio);
 
 
 export default router;
