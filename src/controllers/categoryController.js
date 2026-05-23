@@ -89,6 +89,49 @@ export const categoryController = {
             console.error('[Category] getCategoryById error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi lấy chi tiết danh mục', null);
         }
+    },
+    createCategory: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const {name, type} = req.body;
+            let icon_url = req.body.icon_url;
+            if (req.file) {
+                icon_url = `/uploads/icons/${req.file.filename}`;
+            }
+            if (!name || !type) {
+                return jsonResponse(res, 400, 'name và type là bắt buộc', null);
+            }
+
+            if (!['INCOME', 'EXPENSE'].includes(type)) {
+                return jsonResponse(res, 400, 'type không hợp lệ', null);
+            }
+            const normalizedName = normalizeVietnamese(name);
+            const existingSystemCategory = await prisma.categories.findFirst({
+                where: {
+                    name_normalized: normalizedName,
+                    user_id: null
+                }
+            });
+
+            if (existingSystemCategory) {
+                return jsonResponse(res, 400, 'Lỗi', {name: 'Tên danh mục trùng với danh mục hệ thống'});
+            }
+            const newCategory = await prisma.categories.create({
+                data: {
+                    name,
+                    name_normalized: normalizedName,
+                    type,
+                    icon_url,
+                    user_id: userId,
+                    status: 'ACTIVATE'
+                }
+            });
+            return jsonResponse(res, 201, 'Thành công', newCategory);
+        } catch (error) {
+            console.error('[Category] createCategory error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi tạo danh mục', null);
+        }
+
     }
 
 
