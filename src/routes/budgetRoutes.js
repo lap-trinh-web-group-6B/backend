@@ -10,4 +10,6 @@ router.get('/', requireAuth, budgetController.getBudgets);
 
 router.get('/:id', requireAuth, budgetController.getBudgetDetail);
 
+router.patch('/:id', requireAuth, budgetController.updateBudget);
+
 export default router;
