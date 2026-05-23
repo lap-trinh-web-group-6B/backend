@@ -75,6 +75,73 @@ export const statisticsController = {
             console.error('[Error] getGeneralStats:', error);
             return jsonResponse(res, 500, 'Lỗi server khi lấy thống kê chung', null);
         }
+    },
+    getStatsByCategory: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { type = 'EXPENSE', from_date, to_date } = req.query;
+            const whereClause = {
+                user_id: userId,
+                categories: {
+                    type
+                }
+            };
+            if (from_date || to_date) {
+                whereClause.transaction_date = {};
+                if (from_date) {
+                    whereClause.transaction_date.gte = new Date(from_date);
+                }
+                if (to_date) {
+                    whereClause.transaction_date.lte = new Date(to_date);
+                }
+            }
+            const stats = await prisma.transactions.groupBy({
+                by: ['category_id'],
+                where: whereClause,
+                _sum: {
+                    amount: true
+                },
+                orderBy: {
+                    _sum: {
+                        amount: 'desc'
+                    }
+                }
+            });
+            const categoryIds = stats.map(item => item.category_id);
+
+            const categories = await prisma.categories.findMany({
+                where: {
+                    id: {
+                        in: categoryIds
+                    }
+                },
+                select: {
+                    id: true,
+                    name: true,
+                    icon_url: true
+                }
+            });
+            const formattedStats = stats.map(stat => {
+                const category = categories.find(
+                    c => c.id === stat.category_id
+                );
+                return {
+                    category_id: stat.category_id,
+                    category_name: category?.name || null,
+                    category_icon: category?.icon_url || null,
+                    total_amount: parseFloat(stat._sum.amount || 0)
+                };
+            });
+            return jsonResponse(res, 200, 'Success', formattedStats);
+        } catch (error) {
+            console.error('[Error] getStatsByCategory:', error);
+            return jsonResponse(
+                res,
+                500,
+                'Lỗi server khi lấy thống kê theo danh mục',
+                null
+            );
+        }
     }
 
 }
