@@ -8,5 +8,6 @@ const router = express.Router();
 router.get('/', requireAuth, categoryController.getCategories);
 router.get('/:id', requireAuth, categoryController.getCategoryById);
 router.post('/', requireAuth, multerIconUpload, compressIconMiddleware, categoryController.createCategory);
+router.patch('/:id', requireAuth, multerIconUpload, compressIconMiddleware, categoryController.updateCategory);
 
 export default router;

@@ -1,6 +1,7 @@
 import {prisma} from '../config/database.js';
 import {jsonResponse} from '../utils/responseHelper.js';
 import {normalizeVietnamese} from '../utils/stringUtils.js';
+import {deleteFile} from '../utils/fileUtils.js';
 
 
 export const categoryController = {
@@ -132,6 +133,64 @@ export const categoryController = {
             return jsonResponse(res, 500, 'Lỗi server khi tạo danh mục', null);
         }
 
+    },
+    updateCategory: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const categoryId = req.params.id;
+            const {name, type, status} = req.body;
+            let icon_url = req.body.icon_url;
+
+            const category = await prisma.categories.findUnique({
+                where: {
+                    id: Number(categoryId)
+                }
+            });
+
+            if (!category) {
+                return jsonResponse(res, 404, 'Không tìm thấy danh mục', null);
+            }
+            if (category.user_id === null) {
+                return jsonResponse(res, 403, 'Không thể chỉnh sửa danh mục hệ thống', null);
+            }
+            if (category.user_id !== userId) {
+                return jsonResponse(res, 403, 'Bạn không có quyền chỉnh sửa danh mục này', null);
+            }
+            if (name && normalizeVietnamese(name) !== category.name_normalized) {
+                const normalizedName = normalizeVietnamese(name);
+                const existingSystemCategory = await prisma.categories.findFirst({
+                    where: {
+                        name_normalized: normalizedName,
+                        user_id: null
+                    }
+                });
+                if (existingSystemCategory) {
+                    return jsonResponse(res, 400, 'Lỗi', {name: 'Tên danh mục trùng với danh mục hệ thống'});
+                }
+                category.name = name;
+                category.name_normalized = normalizedName;
+            }
+            if (type && ['INCOME', 'EXPENSE'].includes(type)) category.type = type;
+            if (req.file) {
+                if (category.icon_url && category.icon_url.startsWith('/uploads/')) {
+                    deleteFile(category.icon_url);
+                }
+                category.icon_url = `/uploads/icons/${req.file.filename}`;
+            } else {
+                category.icon_url = null;
+            }
+            if (status && ['ACTIVATE', 'DISABLED'].includes(status)) category.status = status;
+            await prisma.categories.update({
+                where: {
+                    id: category.id
+                },
+                data: category
+            });
+            return jsonResponse(res, 200, 'Thành công', category);
+        } catch (error) {
+            console.error('[Category] updateCategory error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi cập nhật danh mục', null);
+        }
     }
 
 
