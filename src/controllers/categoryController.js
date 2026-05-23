@@ -68,6 +68,27 @@ export const categoryController = {
             console.error('[Category] getCategories error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi lấy danh sách danh mục', null);
         }
+    },
+    getCategoryById: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const categoryId = req.params.id;
+            const category = await prisma.categories.findUnique({
+                where: {
+                    id: Number(categoryId)
+                }
+            });
+            if (!category) {
+                return jsonResponse(res, 404, 'Không tìm thấy danh mục', null);
+            }
+            if (category.user_id !== null && category.user_id !== userId) {
+                return jsonResponse(res, 403, 'Bạn không có quyền xem danh mục này', null);
+            }
+            return jsonResponse(res, 200, 'Success', category);
+        } catch (error) {
+            console.error('[Category] getCategoryById error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi lấy chi tiết danh mục', null);
+        }
     }
 
 
