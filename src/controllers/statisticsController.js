@@ -142,6 +142,79 @@ export const statisticsController = {
                 null
             );
         }
+    },
+    getTrendStats: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const { from_date, to_date, period = 'daily' } = req.query;
+
+            const dateTruncFormat = period === 'monthly' ? 'month' : 'day';
+
+            let conditions = [`tx.user_id = ${userId}`];
+
+            if (from_date) {
+                conditions.push(
+                    `tx.transaction_date >= '${new Date(from_date).toISOString()}'`
+                );
+            }
+
+            if (to_date) {
+                conditions.push(
+                    `tx.transaction_date <= '${new Date(to_date).toISOString()}'`
+                );
+            }
+
+            const whereClause = conditions.join(' AND ');
+
+            const rawStats = await prisma.$queryRawUnsafe(`
+            SELECT 
+                DATE_TRUNC('${dateTruncFormat}', tx.transaction_date) AS date,
+                c.type AS type,
+                SUM(tx.amount) AS total
+            FROM transactions tx
+            LEFT JOIN categories c 
+                ON tx.category_id = c.id
+            WHERE ${whereClause}
+            GROUP BY DATE_TRUNC('${dateTruncFormat}', tx.transaction_date), c.type
+            ORDER BY date ASC
+        `);
+            const trendMap = new Map();
+            rawStats.forEach(row => {
+                const dateStr = row.date.toISOString().split('T')[0];
+
+                if (!trendMap.has(dateStr)) {
+                    trendMap.set(dateStr, {
+                        date: dateStr,
+                        income: 0,
+                        expense: 0
+                    });
+                }
+
+                const record = trendMap.get(dateStr);
+
+                if (row.type === 'INCOME') {
+                    record.income = parseFloat(row.total) || 0;
+                }
+
+                if (row.type === 'EXPENSE') {
+                    record.expense = parseFloat(row.total) || 0;
+                }
+            });
+
+            const formattedTrends = Array.from(trendMap.values());
+
+            return jsonResponse(res, 200, 'Success', formattedTrends);
+
+        } catch (error) {
+            console.error('[Error] getTrendStats:', error);
+
+            return jsonResponse(
+                res,
+                500,
+                'Lỗi server khi lấy thống kê xu hướng',
+                null
+            );
+        }
     }
 
 }
