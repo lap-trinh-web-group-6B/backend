@@ -1,0 +1,6 @@
+Example .env file:
+
+DATABASE_URL=
+PORT=
+RESEND_API_KEY=
+JWT_SECRET=
