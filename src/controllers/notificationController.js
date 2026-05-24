@@ -27,6 +27,21 @@ export const notificationController = {
             return jsonResponse(res, 500, 'Lỗi server khi lấy chi tiết thông báo', null);
         }
 
+    },
+    markNotificationRead: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const notificationId = parseInt(req.params.id);
+            const updated = await notificationService.markAsRead(notificationId, userId);
+            if (!updated) {
+                return jsonResponse(res, 404, 'Không tìm thấy thông báo hoặc bạn không có quyền', null);
+            }
+            return jsonResponse(res, 200, 'Đã đánh dấu thông báo là đã đọc', updated);
+        } catch (error) {
+            console.error('[NotificationController] markNotificationRead error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi cập nhật trạng thái đã đọc', null);
+        }
     }
+
 
 }
