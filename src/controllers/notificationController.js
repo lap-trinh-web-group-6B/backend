@@ -55,7 +55,18 @@ export const notificationController = {
             console.error('[NotificationController] deleteNotification error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi xóa thông báo', null);
         }
+    },
+    deleteAllNotifications: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            await notificationService.softDeleteAllNotifications(userId);
+            return jsonResponse(res, 200, 'Đã xóa tất cả thông báo', null);
+        } catch (error) {
+            console.error('[NotificationController] deleteAllNotifications error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi xóa tất cả thông báo', null);
+        }
     }
+
 
 
 

@@ -12,6 +12,8 @@ router.patch('/:id/read', requireAuth, notificationController.markNotificationRe
 
 router.delete('/:id', requireAuth, notificationController.deleteNotification);
 
+router.delete('/', requireAuth, notificationController.deleteAllNotifications);
+
 
 
 export default router;
