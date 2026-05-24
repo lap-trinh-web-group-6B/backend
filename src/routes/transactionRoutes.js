@@ -13,5 +13,7 @@ router.post('/', requireAuth, upload.none(), transactionController.createTransac
 
 router.patch('/:id', requireAuth, upload.none(), transactionController.updateTransaction);
 
+router.delete('/:id', requireAuth, transactionController.deleteTransaction);
+
 
 export default router;

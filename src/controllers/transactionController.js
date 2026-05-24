@@ -395,6 +395,87 @@ export const transactionController = {
                 error.errors || null
             );
         }
+    },
+    deleteTransaction: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const txId = parseInt(req.params.id);
+            await prisma.$transaction(async (txDb) => {
+                // Note: Lấy transaction cũ kèm category
+                const transaction = await txDb.transactions.findUnique({
+                    where: {
+                        id: txId
+                    },
+                    include: {
+                        categories: true
+                    }
+                });
+                if (!transaction) {
+                    throw {
+                        status: 404,
+                        message: 'Không tìm thấy giao dịch'
+                    };
+                }
+                if (transaction.user_id !== userId) {
+                    throw {
+                        status: 403,
+                        message: 'Không có quyền xóa giao dịch này'
+                    };
+                }
+                // Note: Lock wallet để tránh race condition
+                await txDb.$queryRaw`
+                SELECT id
+                FROM wallets
+                WHERE id = ${transaction.wallet_id}
+                FOR UPDATE
+            `;
+                // Note: Lấy ví
+                const wallet = await txDb.wallets.findFirst({
+                    where: {
+                        id: transaction.wallet_id,
+                        user_id: userId
+                    }
+                });
+
+                if (wallet) {
+                    // Note: Refund số dư
+                    const effect =
+                        transaction.categories.type === 'EXPENSE' ? -1 : 1;
+                    const updatedBalance =
+                        parseFloat(wallet.balance) -
+                        (parseFloat(transaction.amount) * effect);
+                    // Note: Update balance
+                    await txDb.wallets.update({
+                        where: {
+                            id: wallet.id
+                        },
+                        data: {
+                            balance: updatedBalance
+                        }
+                    });
+                }
+                // Note: Delete transaction
+                await txDb.transactions.delete({
+                    where: {
+                        id: transaction.id
+                    }
+                });
+            });
+            return jsonResponse(
+                res,
+                200,
+                'Xóa giao dịch thành công',
+                null
+            );
+        } catch (error) {
+            console.error('[Error] deleteTransaction:', error);
+            return jsonResponse(
+                res,
+                error.status || 500,
+                error.message || 'Lỗi server / Database',
+                null
+            );
+        }
     }
 
 
