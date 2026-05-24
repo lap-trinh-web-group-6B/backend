@@ -187,12 +187,12 @@ export const transactionController = {
 
             // Note: Kiểm tra cảnh báo số dư âm sau khi commit
             if (result.wallet.balance < 0) {
-                await triggerNegativeBalanceWarning(result.wallet, userId);
+                triggerNegativeBalanceWarning(result.wallet, userId);
             }
 
             // Note: Kiểm tra cảnh báo ngân sách
             if (result.category.type === 'EXPENSE') {
-                await checkBudgetAlerts(userId, parseInt(category_id));
+                checkBudgetAlerts(userId, parseInt(category_id));
             }
 
             return jsonResponse(res, 201, 'Tạo giao dịch thành công', {
@@ -208,6 +208,192 @@ export const transactionController = {
             }
 
             return jsonResponse(res, 500, 'Lỗi server / Database', null);
+        }
+    },
+    updateTransaction: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const txId = parseInt(req.params.id);
+            const {
+                wallet_id,
+                category_id,
+                amount,
+                transaction_date,
+                note,
+                currency,
+                status
+            } = req.body;
+            const result = await prisma.$transaction(async (tx) => {
+                const oldTx = await tx.transactions.findUnique({
+                    where: { id: txId },
+                    include: {
+                        categories: true
+                    }
+                });
+                if (!oldTx) {
+                    throw {
+                        status: 404,
+                        message: 'Không tìm thấy giao dịch'
+                    };
+                }
+                if (oldTx.user_id !== userId) {
+                    throw {
+                        status: 403,
+                        message: 'Không có quyền sửa giao dịch này'
+                    };
+                }
+                const oldAmount = parseFloat(oldTx.amount);
+                const oldWalletId = oldTx.wallet_id;
+                const oldEffect =
+                    oldTx.categories.type === 'EXPENSE' ? -1 : 1;
+                let currentWalletId = oldWalletId;
+                if (wallet_id && parseInt(wallet_id) !== oldWalletId) {
+                    currentWalletId = parseInt(wallet_id);
+                }
+                const walletsAffected = new Set([
+                    oldWalletId,
+                    currentWalletId
+                ]);
+                const walletsMap = new Map();
+                for (const wid of walletsAffected) {
+                    await tx.$queryRaw`
+                    SELECT id
+                    FROM wallets
+                    WHERE id = ${wid}
+                    FOR UPDATE
+                `;
+                    const wallet = await tx.wallets.findFirst({
+                        where: {
+                            id: wid,
+                            user_id: userId
+                        }
+                    });
+                    if (!wallet) {
+                        throw {
+                            status: 403,
+                            message: `Ví ${wid} không hợp lệ`
+                        };
+                    }
+                    walletsMap.set(wid, wallet);
+                }
+                let currentCategory = oldTx.categories;
+                if (category_id && parseInt(category_id) !== oldTx.category_id) {
+                    const newCategory = await tx.categories.findFirst({
+                        where: {
+                            id: parseInt(category_id)
+                        }
+                    });
+
+                    if (
+                        !newCategory ||
+                        (
+                            newCategory.user_id !== null &&
+                            newCategory.user_id !== userId
+                        )
+                    ) {
+                        throw {
+                            status: 403,
+                            message: 'Lỗi',
+                            errors: {
+                                category_id: 'Danh mục không hợp lệ'
+                            }
+                        };
+                    }
+                    currentCategory = newCategory;
+                }
+
+                const newAmount =
+                    amount !== undefined
+                        ? parseFloat(amount)
+                        : oldAmount;
+
+                const newEffect = currentCategory.type === 'EXPENSE' ? -1 : 1;
+                if (oldWalletId === currentWalletId) {
+                    // Case 1: cùng ví
+                    const wallet = walletsMap.get(oldWalletId);
+                    const delta =
+                        (newAmount * newEffect) -
+                        (oldAmount * oldEffect);
+                    wallet.balance =
+                        parseFloat(wallet.balance) + delta;
+
+                } else {
+                    // Case 2: đổi ví
+                    const oldWallet = walletsMap.get(oldWalletId);
+                    const newWallet = walletsMap.get(currentWalletId);
+                    // Refund ví cũ
+                    oldWallet.balance =
+                        parseFloat(oldWallet.balance) -
+                        (oldAmount * oldEffect);
+                    // Apply ví mới
+                    newWallet.balance =
+                        parseFloat(newWallet.balance) +
+                        (newAmount * newEffect);
+                }
+                // Note: Update transaction
+                const updatedTx = await tx.transactions.update({
+                    where: {
+                        id: oldTx.id
+                    },
+                    data: {
+                        wallet_id: currentWalletId,
+                        category_id: currentCategory.id,
+                        amount: newAmount,
+                        ...(transaction_date && {
+                            transaction_date: new Date(transaction_date)
+                        }),
+                        ...(note !== undefined && {
+                            note
+                        }),
+                        ...(currency && {
+                            currency
+                        }),
+                        ...(status && {
+                            status
+                        })
+                    },
+                    include: {
+                        categories: true
+                    }
+                });
+                // Note: Save wallets
+                for (const wallet of walletsMap.values()) {
+                    await tx.wallets.update({
+                        where: {
+                            id: wallet.id
+                        },
+                        data: {
+                            balance: wallet.balance
+                        }
+                    });
+                }
+                return {
+                    updatedTx,
+                    wallets: [...walletsMap.values()]
+                };
+            });
+            // Note: Trigger cảnh báo sau commit
+            for (const wallet of result.wallets) {
+                if (wallet.balance < 0) {
+                    triggerNegativeBalanceWarning(wallet, userId);
+                }
+            }
+
+            return jsonResponse(
+                res,
+                200,
+                'Cập nhật giao dịch thành công',
+                result.updatedTx
+            );
+
+        } catch (error) {
+            console.error('[Error] updateTransaction:', error);
+            return jsonResponse(
+                res,
+                error.status || 500,
+                error.message || 'Lỗi server / Database',
+                error.errors || null
+            );
         }
     }
 
