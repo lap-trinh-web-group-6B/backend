@@ -12,6 +12,21 @@ export const notificationController = {
             console.error('[NotificationController] getNotifications error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi lấy thông báo', null);
         }
+    },
+    getNotificationDetail: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const notificationId = parseInt(req.params.id);
+            const notification = await notificationService.getNotificationById(notificationId, userId);
+            if (!notification) {
+                return jsonResponse(res, 404, 'Không tìm thấy thông báo hoặc bạn không có quyền xem', null);
+            }
+            return jsonResponse(res, 200, 'Success', notification);
+        } catch (error) {
+            console.error('[NotificationController] getNotificationDetail error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi lấy chi tiết thông báo', null);
+        }
+
     }
 
 }

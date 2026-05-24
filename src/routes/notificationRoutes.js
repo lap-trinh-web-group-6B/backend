@@ -6,6 +6,8 @@ const router = express.Router();
 
 router.get('/', requireAuth, notificationController.getNotifications);
 
+router.get('/:id', requireAuth, notificationController.getNotificationDetail);
+
 
 
 export default router;
