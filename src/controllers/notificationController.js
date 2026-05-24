@@ -41,7 +41,22 @@ export const notificationController = {
             console.error('[NotificationController] markNotificationRead error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi cập nhật trạng thái đã đọc', null);
         }
+    },
+    deleteNotification: async (req, res) => {
+        try {
+            const userId = req.user.id;
+            const notificationId = parseInt(req.params.id);
+            const deleted = await notificationService.softDeleteNotification(notificationId, userId);
+            if (!deleted) {
+                return jsonResponse(res, 404, 'Không tìm thấy thông báo hoặc bạn không có quyền xóa', null);
+            }
+            return jsonResponse(res, 200, 'Đã xóa thông báo', null);
+        } catch (error) {
+            console.error('[NotificationController] deleteNotification error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi xóa thông báo', null);
+        }
     }
+
 
 
 }

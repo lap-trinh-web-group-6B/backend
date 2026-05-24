@@ -10,6 +10,8 @@ router.get('/:id', requireAuth, notificationController.getNotificationDetail);
 
 router.patch('/:id/read', requireAuth, notificationController.markNotificationRead);
 
+router.delete('/:id', requireAuth, notificationController.deleteNotification);
+
 
 
 export default router;
