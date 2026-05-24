@@ -1,6 +1,7 @@
 import {jsonResponse} from '../utils/responseHelper.js';
 import {prisma} from '../config/database.js';
 import * as argon2 from 'argon2';
+import {deleteFile} from "../utils/fileUtils.js";
 
 export const userController= {
     getProfile: async (req, res) => {
@@ -108,6 +109,46 @@ export const userController= {
             return jsonResponse(res, 200, 'Thành công');
         } catch (error) {
             return jsonResponse(res, 500, 'Lỗi hệ thống', null);
+        }
+    },
+    updateAvatar: async (req, res) => {
+        try {
+            if (!req.file) {
+                return jsonResponse(res, 400, 'Không có file ảnh được upload', null);
+            }
+            const user = await prisma.users.findUnique({
+                where: {
+                    id: Number(req.user.id)
+                }
+            });
+            if (!user) {
+                return jsonResponse(res, 404, 'Không tìm thấy người dùng', null);
+            }
+            // Xoá file avatar cũ (nếu có) để giải phóng không gian
+            if (user.avatar) {
+                deleteFile(user.avatar);
+            }
+            // Lưu đường dẫn file mới vào db
+            // Yêu cầu chuyển đường dẫn vật lý thành URL tương đối tĩnh (VD: /uploads/avatars/filename.webp)
+            const fileUrl = `/uploads/avatars/${req.file.filename}`;
+            user.avatar = fileUrl;
+            await prisma.users.update({
+                where: {
+                    id: user.id
+                },
+                data: {
+                    email: user.email,
+                    fullName: user.fullName,
+                    avatar: user.avatar,
+                    fcmToken: user.fcmToken,
+                    refreshToken: user.refreshToken
+                }
+            });
+            const {password, syncId, createdAt, ...updatedUser} = user;
+            return jsonResponse(res, 200, 'Thành công', updatedUser);
+        } catch (error) {
+            console.error('[UserController] updateAvatar error:', error);
+            return jsonResponse(res, 500, 'Lỗi hệ thống khi cập nhật avatar', null);
         }
     }
 
