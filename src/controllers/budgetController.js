@@ -1,5 +1,6 @@
 import {jsonResponse} from '../utils/responseHelper.js';
 import {prisma} from '../config/database.js';
+import {createNotification} from "../services/notificationService.js";
 
 
 export const budgetController = {
@@ -267,4 +268,67 @@ const calculateCurrentSpent = async (budget) => {
         }
     });
     return Number(result._sum.amount) || 0;
+};
+
+export const checkBudgetAlerts = async (userId, categoryId) => {
+    try {
+        // Lấy tất cả ngân sách ACTIVE của user cho category này
+        const activeBudgets = await prisma.budgets.findMany({
+            where: {
+                user_id: userId,
+                category_id: categoryId,
+                status: 'ACTIVE',
+                is_alert_enabled: true
+            },
+            include: {
+                categories: true
+            }
+        });
+
+        for (const budget of activeBudgets) {
+            const currentSpent = await calculateCurrentSpent(budget);
+            const limit = Number(budget.amount_limit);
+
+            if (!limit || limit <= 0) continue;
+
+            const percentage = currentSpent / limit;
+            const categoryName = budget.categories?.name || "Unknown Category";
+
+            console.log(
+                `[Budget] User ${userId} spent ${percentage * 100}% of ${categoryName}`
+            );
+
+            if (currentSpent >= limit) {
+                console.log(
+                    `[Budget] Creating Exceeded Warning for User ${userId}`
+                );
+
+                await createNotification(
+                    userId,
+                    "Cảnh báo vượt ngân sách",
+                    `Bạn đã tiêu quá hạn mức cho danh mục: ${categoryName}`,
+                    "WARNING"
+                );
+
+            } else if (
+                percentage >= Number(budget.alert_threshold || 0.8)
+            ) {
+                console.log(
+                    `[Budget] Sending Threshold Alert for User ${userId}`
+                );
+
+                await createNotification(
+                    userId,
+                    "Cảnh báo vượt ngân sách",
+                    `Bạn đã tiêu quá hạn mức cho danh mục: ${categoryName}`,
+                    "WARNING"
+                );
+            }
+        }
+    } catch (error) {
+        console.error(
+            '[Budget] checkBudgetAlerts error:',
+            error.message
+        );
+    }
 };
