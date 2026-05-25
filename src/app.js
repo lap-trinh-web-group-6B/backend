@@ -3,6 +3,8 @@ import dotenv from 'dotenv';
 import apiRoutes from './routes/api.js';
 import authRoutes from './routes/auth.js';
 import cors from 'cors';
+import paymentRoutes from './routes/payment.js';
+import webhookRoutes from './routes/webhook.js';
 
 const router = express.Router();
 router.use('/auth', authRoutes);
@@ -12,6 +14,9 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/api/v1', apiRoutes);
+
+app.use('/api/payment', paymentRoutes);
+app.use('/api/webhook', webhookRoutes);
 
 
 
