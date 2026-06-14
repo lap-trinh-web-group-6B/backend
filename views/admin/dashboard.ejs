@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Monety Admin</title>
+    <!-- (Note: TailwindCSS config cho Theme Project) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00BBA7',
+                        primaryHover: '#009e8d'
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body class="bg-gray-100 font-sans leading-normal tracking-normal flex h-screen overflow-hidden">
+
+    <!-- Bao gồm Sidebar Component -->
+    <!-- (Note: Include thanh công cụ bên trái) -->
+    <%- include('partials/sidebar') %>
+
+        <!-- Giao diện nội dung chính -->
+        <div class="flex-1 flex flex-col h-screen overflow-hidden">
+
+            <!-- Bao gồm Header Component -->
+            <!-- (Note: Include thanh công cụ phía trên) -->
+            <%- include('partials/header', { pageTitle: 'Bảng Điều Khiển' }) %>
+
+                <!-- Nội dung chính của Dashboard -->
+                <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
+                    <div class="max-w-7xl mx-auto">
+                        <!-- Bộ lọc thời gian -->
+                        <div class="flex flex-col md:flex-row justify-between items-center mb-6">
+                            <h2 class="text-2xl font-bold text-gray-800">Thống kê Tổng quan</h2>
+                            <div class="mt-4 md:mt-0">
+                                <select id="timeFilter" class="bg-white border text-sm font-bold border-gray-300 text-gray-700 py-2 px-4 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer w-[200px]" onchange="fetchDashboardStats()">
+                                    <option value="7">7 Ngày Qua</option>
+                                    <option value="28" selected>28 Ngày Qua</option>
+                                    <option value="90">3 Tháng Qua</option>
+                                    <option value="365">1 Năm Qua</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Thống kê tổng quan dạng Cards (cập nhật qua AJAX) -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 text-center md:text-left">
+                            <!-- Card: Tổng Người dùng Mới -->
+                            <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-primary relative overflow-hidden">
+                                <div class="flex items-center space-x-4">
+                                    <div class="p-3 rounded-full bg-teal-50 text-primary">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                                    </div>
+                                    <div class="text-left w-full">
+                                        <p class="text-xs text-gray-400 uppercase font-bold tracking-wider">Tài khoản Free Mới</p>
+                                        <div class="flex items-baseline space-x-2">
+                                            <p id="totalFreeCard" class="text-2xl font-bold text-gray-800 loading-pulse">--</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Card: Premium -->
+                            <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-amber-400 relative overflow-hidden">
+                                <div class="flex items-center space-x-4">
+                                    <div class="p-3 rounded-full bg-amber-50 text-amber-500">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg>
+                                    </div>
+                                    <div class="text-left w-full">
+                                        <p class="text-xs text-gray-400 uppercase font-bold tracking-wider">Tài khoản PREMIUM mới</p>
+                                        <p id="totalPremiumCard" class="text-2xl font-bold text-amber-600 loading-pulse">--</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Card: Tài khoản Active -->
+                            <div class="bg-white rounded-xl shadow-sm p-6 border-l-4 border-emerald-500 relative overflow-hidden">
+                                <div class="flex items-center space-x-4">
+                                    <div class="p-3 rounded-full bg-emerald-50 text-emerald-500">
+                                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                                    </div>
+                                    <div class="text-left w-full">
+                                        <p class="text-xs text-gray-400 uppercase font-bold tracking-wider">Tài khoản Active</p>
+                                        <p id="totalActiveCard" class="text-2xl font-bold text-gray-800 loading-pulse">--</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Biểu đồ -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                            <!-- Đăng ký người dùng mới -->
+                            <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                                <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-4">Đăng ký người dùng theo ngày</h3>
+                                <div class="relative h-[300px] w-full">
+                                    <canvas id="userChart"></canvas>
+                                </div>
+                            </div>
+                            
+                            <!-- Tài khoản Active -->
+                            <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                                <h3 class="text-sm font-bold text-gray-800 uppercase tracking-wide mb-4">Tài khoản có tương tác theo ngày</h3>
+                                <div class="relative h-[300px] w-full">
+                                    <canvas id="activeChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Hàng dưới: Người dùng mới (Recent Users from DB) -->
+                        <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-8">
+                            <div class="p-6 border-b flex justify-between items-center">
+                                <h3 class="text-lg font-bold text-gray-800">Tài khoản mới nhất (All Time)</h3>
+                                <a href="/admin/users" class="text-primary hover:text-primaryHover text-sm font-medium">Xem tất cả</a>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left">
+                                    <thead>
+                                        <tr class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+                                            <th class="px-6 py-4 font-bold">Họ tên</th>
+                                            <th class="px-6 py-4 font-bold">Email</th>
+                                            <th class="px-6 py-4 font-bold">Loại</th>
+                                            <th class="px-6 py-4 font-bold">Ngày tham gia</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-100 italic">
+                                        <% recentUsers.forEach(user => { %>
+                                            <tr class="hover:bg-gray-50 transition-colors">
+                                                <td class="px-6 py-4 text-sm font-medium text-gray-800"><%= user.fullName %></td>
+                                                <td class="px-6 py-4 text-sm text-gray-500"><%= user.email %></td>
+                                                <td class="px-6 py-4">
+                                                    <span class="px-2 py-1 rounded-full text-[10px] font-bold <%= user.type === 'PREMIUM' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600' %>">
+                                                        <%= user.type %>
+                                                    </span>
+                                                </td>
+                                                <td class="px-6 py-4 text-sm text-gray-400">
+                                                    <%= new Date(user.createdAt).toLocaleDateString('vi-VN') %>
+                                                </td>
+                                            </tr>
+                                        <% }) %>
+                                        <% if (recentUsers.length === 0) { %>
+                                            <tr>
+                                                <td colspan="4" class="px-6 py-8 text-center text-gray-400">Chưa có người dùng nào</td>
+                                            </tr>
+                                        <% } %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+                </main>
+
+                <!-- Script Xử lý AJAX và Vẽ Biểu đồ -->
+                <script>
+                    let userChartInstance = null;
+                    let activeChartInstance = null;
+
+                    document.addEventListener('DOMContentLoaded', () => {
+                        fetchDashboardStats();
+                    });
+
+                    async function fetchDashboardStats() {
+                        const range = document.getElementById('timeFilter').value;
+                        
+                        // Set loading state
+                        document.querySelectorAll('.loading-pulse').forEach(el => {
+                            el.innerHTML = '<span class="inline-block animate-pulse w-8 h-8 bg-gray-200 rounded-full"></span>';
+                        });
+
+                        try {
+                            const res = await fetch(`/admin/api/dashboard/stats?range=${range}`);
+                            const json = await res.json();
+                            
+                            if (json.status === 'success') {
+                                updateCards(json.data.summary);
+                                updateCharts(json.data.charts);
+                            }
+                        } catch(error) {
+                            console.error("Lỗi fetch dashboard stats:", error);
+                        }
+                    }
+
+                    function updateCards(summary) {
+                        document.getElementById('totalFreeCard').textContent = summary.newFree;
+                        document.getElementById('totalPremiumCard').textContent = summary.newPremium;
+                        document.getElementById('totalActiveCard').textContent = summary.activeAccounts;
+                    }
+
+                    function updateCharts(charts) {
+                        const { userTrend, activeTrend } = charts;
+
+                        // Chart colors
+                        const primaryColor = '#00BBA7';
+                        const premiumColor = '#fbbf24'; // amber-400
+                        const activeColor = '#10b981'; // emerald-500
+
+                        // 1. User Chart
+                        const userLabels = userTrend.map(t => {
+                            const d = new Date(t.date);
+                            return `${d.getDate()}/${d.getMonth()+1}`;
+                        });
+                        const freeData = userTrend.map(t => parseInt(t.free_count));
+                        const premiumData = userTrend.map(t => parseInt(t.premium_count));
+
+                        if(userChartInstance) userChartInstance.destroy();
+                        const ctxUser = document.getElementById('userChart').getContext('2d');
+                        userChartInstance = new Chart(ctxUser, {
+                            type: 'bar',
+                            data: {
+                                labels: userLabels,
+                                datasets: [
+                                    { label: 'Free', data: freeData, backgroundColor: primaryColor, borderRadius: 4, maxBarThickness: 60 },
+                                    { label: 'Premium', data: premiumData, backgroundColor: premiumColor, borderRadius: 4, maxBarThickness: 60 }
+                                ]
+                            },
+                            options: {
+                                responsive: true, maintainAspectRatio: false,
+                                plugins: { legend: { display: true, position: 'bottom', align: 'start' } },
+                                scales: {
+                                    x: { 
+                                        stacked: true, 
+                                        grid: {display: false},
+                                        title: { display: true, text: 'Ngày', font: { size: 12, weight: 'bold' } }
+                                    },
+                                    y: { 
+                                        stacked: true, 
+                                        beginAtZero: true, 
+                                        ticks: { precision: 0 },
+                                        title: { display: true, text: 'Số lượng đăng ký', font: { size: 12, weight: 'bold' } }
+                                    }
+                                }
+                            }
+                        });
+
+                        // 2. Active Chart
+                        const activeLabels = activeTrend.map(t => {
+                            const d = new Date(t.date);
+                            return `${d.getDate()}/${d.getMonth()+1}`;
+                        });
+                        const activeData = activeTrend.map(t => parseInt(t.active_count));
+
+                        if(activeChartInstance) activeChartInstance.destroy();
+                        const ctxActive = document.getElementById('activeChart').getContext('2d');
+                        activeChartInstance = new Chart(ctxActive, {
+                            type: 'line',
+                            data: {
+                                labels: activeLabels,
+                                datasets: [
+                                    { 
+                                        label: 'Active Users', 
+                                        data: activeData, 
+                                        borderColor: activeColor, 
+                                        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                                        fill: true,
+                                        tension: 0.3,
+                                        pointBackgroundColor: activeColor,
+                                        pointRadius: 4
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true, maintainAspectRatio: false,
+                                plugins: { legend: { display: true, position: 'bottom', align: 'start' } },
+                                scales: {
+                                    x: { 
+                                        grid: {display: false},
+                                        title: { display: true, text: 'Ngày', font: { size: 12, weight: 'bold' } }
+                                    },
+                                    y: { 
+                                        beginAtZero: true, 
+                                        ticks: { precision: 0 },
+                                        title: { display: true, text: 'Số lượng tài khoản', font: { size: 12, weight: 'bold' } }
+                                    }
+                                }
+                            }
+                        });
+                    }
+                </script>
+</main>
+
+        </div>
+</body>
+
+</html>

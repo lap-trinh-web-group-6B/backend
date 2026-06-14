@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Monety Expense Tracker</title>
+    <!-- Thêm TailwindCSS qua CDN -->
+    <!-- (Note: Nhúng script của tailwind để có thể code css trực tiếp trên class template) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00BBA7',
+                        primaryHover: '#009e8d'
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <!-- Form đăng nhập UI container -->
+    <!-- (Note: Đặt form login ra giữa màn hình) -->
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+        
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">Quản trị Monety</h1>
+            <p class="text-gray-500 mt-2">Đăng nhập bằng tài khoản quản trị</p>
+        </div>
+
+        <!-- Render thẻ báo lỗi nếu thông tin sai -->
+        <!-- (Note: Biến error truyền từ back-end) -->
+        <% if (error) { %>
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-6" role="alert">
+                <span class="block sm:inline whitespace-nowrap"><%= error %></span>
+            </div>
+        <% } %>
+
+        <form action="/admin/login" method="POST">
+            <!-- Tên đăng nhập -->
+            <div class="mb-4">
+                <label for="username" class="block text-gray-700 text-sm font-bold mb-2">Tên đăng nhập</label>
+                <!-- (Note: Thẻ input tên đăng nhập truyền cho req.body.username) -->
+                <input type="text" id="username" name="username" required
+                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+            </div>
+
+            <!-- Mật khẩu -->
+            <div class="mb-6">
+                <label for="password" class="block text-gray-700 text-sm font-bold mb-2">Mật khẩu</label>
+                <!-- (Note: Thẻ input mật khẩu truyền cho req.body.password) -->
+                <input type="password" id="password" name="password" required
+                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent">
+            </div>
+
+            <!-- Nút submit -->
+            <div class="flex items-center justify-between">
+                <!-- (Note: Nút Submit form) -->
+                <button type="submit"
+                    class="bg-primary hover:bg-primaryHover w-full text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-200">
+                    Đăng nhập
+                </button>
+            </div>
+        </form>
+        
+        <div class="mt-6 text-center text-sm text-gray-400">
+            &copy; <%= new Date().getFullYear() %> Monety. Hệ thống nội bộ.
+        </div>
+    </div>
+</body>
+</html>

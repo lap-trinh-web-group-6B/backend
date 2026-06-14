@@ -1,5 +1,6 @@
 import { jsonResponse } from '../utils/responseHelper.js';
 import {prisma} from '../config/database.js';
+import { configService, systemConfigKeys } from '../services/configService.js';
 
 export const paymentController = {
     checkout: async (req, res) => {
@@ -8,7 +9,10 @@ export const paymentController = {
             const orderCode = Math.floor(
                 10000000 + Math.random() * 90000000
             ).toString();
-            const amount = 2000;
+            
+            // Lấy giá gói Premium động từ cấu hình hệ thống
+            const premiumPriceStr = await configService.get(systemConfigKeys.PREMIUM_PRICE, '2000');
+            const amount = Number(premiumPriceStr);
 
             const newOrder = await prisma.orders.create({
                 data: {
@@ -19,10 +23,11 @@ export const paymentController = {
                 }
             });
             const transferContent = `PRE${orderCode}`;
-            const binBank =
-                process.env.BIN_BANK_ACCOUNT || '970405';
-            const bankAccount =
-                process.env.BANK_ACCOUNT || '3910205185595';
+            
+            // Lấy thông tin tài khoản động từ cấu hình hệ thống
+            const binBank = await configService.get(systemConfigKeys.BANK_BIN, process.env.BIN_BANK_ACCOUNT || '970405');
+            const bankAccount = await configService.get(systemConfigKeys.BANK_ACCOUNT, process.env.BANK_ACCOUNT || '3910205185595');
+
             const qrUrl =
                 `https://img.vietqr.io/image/` +
                 `${binBank}-${bankAccount}-compact2.jpg` +
@@ -53,6 +58,29 @@ export const paymentController = {
                 'Lỗi server khi tạo đơn hàng',
                 null
             );
+        }
+    },
+
+    getConfig: async (req, res) => {
+        try {
+            const configs = await configService.getMany({
+                [systemConfigKeys.PREMIUM_PRICE]: '2000',
+                [systemConfigKeys.BANK_BIN]: process.env.BIN_BANK_ACCOUNT || '970405',
+                [systemConfigKeys.BANK_ACCOUNT]: process.env.BANK_ACCOUNT || '3910205185595',
+                [systemConfigKeys.BANK_NAME]: 'VietinBank',
+                [systemConfigKeys.BANK_OWNER_NAME]: 'NGUYEN VAN A'
+            });
+
+            return jsonResponse(res, 200, 'Lấy cấu hình thanh toán thành công', {
+                premiumPrice: Number(configs[systemConfigKeys.PREMIUM_PRICE]),
+                bankBin: configs[systemConfigKeys.BANK_BIN],
+                bankAccount: configs[systemConfigKeys.BANK_ACCOUNT],
+                bankName: configs[systemConfigKeys.BANK_NAME],
+                bankOwnerName: configs[systemConfigKeys.BANK_OWNER_NAME]
+            });
+        } catch (error) {
+            console.error('[PaymentController] getConfig error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi lấy cấu hình thanh toán', null);
         }
     }
 };

@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý người dùng - Monety Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00BBA7',
+                        primaryHover: '#009e8d',
+                        danger: '#EF4444',
+                        dangerHover: '#DC2626'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        [v-cloak] { display: none; }
+        .toast-active { transform: translateX(0) !important; opacity: 1 !important; }
+    </style>
+</head>
+
+<body class="bg-gray-100 font-sans leading-normal tracking-normal flex h-screen overflow-hidden">
+
+    <%- include('partials/sidebar') %>
+
+    <div class="flex-1 flex flex-col h-screen overflow-hidden">
+        <%- include('partials/header', { pageTitle: 'Quản lý người dùng' }) %>
+
+        <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 md:p-6">
+            <div class="max-w-7xl mx-auto">
+
+                <!-- Thanh công cụ tìm kiếm và lọc (Note: Bộ lọc người dùng đồng nhất với Category) -->
+                <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                        
+                        <!-- Ô tìm kiếm (Note: Tìm kiếm theo tên) -->
+                        <div class="lg:col-span-2 relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                            </span>
+                            <input type="text" id="searchInput" placeholder="Tìm kiếm theo tên người dùng..."
+                                class="border border-gray-300 rounded-md pl-10 pr-3 py-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                onkeydown="if(event.key === 'Enter') fetchUsers()">
+                        </div>
+
+                        <!-- Lọc theo loại (Note: FREE / PREMIUM) -->
+                        <div>
+                            <select id="filterType" onchange="fetchUsers()"
+                                class="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
+                                <option value="ALL">Tất cả loại tài khoản</option>
+                                <option value="FREE">FREE (Miễn phí)</option>
+                                <option value="PREMIUM">PREMIUM (Trả phí)</option>
+                            </select>
+                        </div>
+
+                        <!-- Lọc theo trạng thái -->
+                        <div>
+                            <select id="filterStatus" onchange="fetchUsers()"
+                                class="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
+                                <option value="ALL">Tất cả trạng thái</option>
+                                <option value="ACTIVATE">ACTIVATE (Hoạt động)</option>
+                                <option value="DISABLE">DISABLE (Vô hiệu hóa)</option>
+                                <option value="BANNED">BANNED (Bị khóa)</option>
+                                <option value="CANCEL">CANCEL (Đã hủy)</option>
+                            </select>
+                        </div>
+
+                        <!-- Sắp xếp -->
+                        <div>
+                            <select id="sortOrder" onchange="fetchUsers()"
+                                class="border border-gray-300 rounded-md px-3 py-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
+                                <option value="createdAt_desc">Mới nhất trước</option>
+                                <option value="createdAt_asc">Cũ nhất trước</option>
+                                <option value="fullName_asc">Tên A-Z</option>
+                                <option value="fullName_desc">Tên Z-A</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bảng dữ liệu người dùng (Note: Hiển thị thông tin chi tiết người dùng) -->
+                <div class="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Người dùng</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID / Email</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody id="userTableBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Dữ liệu render bằng JS -->
+                                <tr>
+                                    <td colspan="5" class="px-6 py-10 text-center text-gray-500">Đang tải dữ liệu...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Phân trang (Note: Điều hướng trang người dùng) -->
+                    <div class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6 flex items-center justify-between">
+                        <div class="flex-1 flex justify-between sm:hidden">
+                            <button onclick="changePage(state.page - 1)" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Trước</button>
+                            <button onclick="changePage(state.page + 1)" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Sau</button>
+                        </div>
+                        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                            <div>
+                                <p class="text-sm text-gray-700">
+                                    Hiển thị <span id="itemRange" class="font-medium">0 - 0</span> trong tổng số <span id="totalItems" class="font-medium">0</span> người dùng
+                                </p>
+                            </div>
+                            <div>
+                                <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                                    <button onclick="changePage(state.page - 1)" id="prevBtn" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                                    </button>
+                                    <span id="pageInfo" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                        Trang 1 / 1
+                                    </span>
+                                    <button onclick="changePage(state.page + 1)" id="nextBtn" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+                                    </button>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Confirm Ban Modal (Note: Hộp thoại xác nhận cấm người dùng) -->
+    <div id="banModal" class="fixed z-50 inset-0 hidden overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onclick="closeBanModal()"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                            <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900" id="banModalTitle">Xác nhận khóa tài khoản</h3>
+                            <div class="mt-2">
+                                <p class="text-sm text-gray-500" id="banModalMessage">
+                                    Bạn có chắc muốn khóa tài khoản này? Hành động này sẽ khóa tài khoản và gửi email cảnh báo tới người dùng. Người dùng sẽ không thể đăng nhập vào ứng dụng.
+                                </p>
+                                <p id="banUserName" class="mt-2 text-sm font-bold text-gray-700"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" id="confirmBanBtn" onclick="handleConfirmAction()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
+                        Xác nhận
+                    </button>
+                    <button type="button" onclick="closeBanModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                        Hủy
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification (Note: Thông báo thành công đồng nhất với Categories) -->
+    <div id="toast" class="fixed top-4 right-4 z-50 transform transition-all duration-300 translate-x-full opacity-0">
+        <div class="bg-primary text-white px-6 py-3 rounded-lg shadow-lg flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span id="toastMsg">Thành công!</span>
+        </div>
+    </div>
+
+    <script>
+        // Note: Quản lý trạng thái giao diện phía người dùng
+        let state = {
+            page: 1,
+            limit: 20,
+            sort: 'createdAt_desc',
+            search: '',
+            type: 'ALL',
+            status: 'ALL',
+            items: [],
+            total: 0,
+            totalPages: 1
+        };
+
+        let selectedUserId = null;
+
+        /**
+         * Lấy danh sách người dùng từ API
+         * (Note: Gọi API với các tham số tìm kiếm và phân trang)
+         */
+        async function fetchUsers() {
+            state.search = document.getElementById('searchInput').value;
+            state.type = document.getElementById('filterType').value;
+            state.status = document.getElementById('filterStatus').value;
+            state.sort = document.getElementById('sortOrder').value;
+
+            const tableBody = document.getElementById('userTableBody');
+            tableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-gray-500">Đang tải dữ liệu...</td></tr>';
+
+            const queryParams = new URLSearchParams({
+                page: state.page,
+                limit: state.limit,
+                sort: state.sort,
+                search: state.search,
+                type: state.type,
+                status: state.status
+            });
+
+            try {
+                const response = await fetch(`/admin/api/users?${queryParams.toString()}`);
+                const resData = await response.json();
+
+                if (resData.status === 200) {
+                    state.items = resData.data.items;
+                    state.total = resData.data.total;
+                    state.totalPages = resData.data.totalPages;
+                    renderTable();
+                    renderPagination();
+                } else {
+                    tableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-red-500">${resData.message || 'Lỗi server'}</td></tr>`;
+                }
+            } catch (error) {
+                console.error('Fetch error:', error);
+                tableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-red-500">Không thể kết nối máy chủ</td></tr>';
+            }
+        }
+
+        /**
+         * Hiển thị dữ liệu lên bảng
+         * (Note: Duyệt qua mảng người dùng và tạo các dòng HTML)
+         */
+        function renderTable() {
+            const tableBody = document.getElementById('userTableBody');
+            if (state.items.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-gray-500">Không tìm thấy người dùng nào</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = state.items.map(user => {
+                // Note: Badge cho các loại tài khoản
+                const typeBadge = user.type === 'PREMIUM'
+                    ? '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 border border-yellow-200">PREMIUM</span>'
+                    : '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-600">FREE</span>';
+
+                // Note: Badge cho trạng thái
+                let statusClass = 'bg-gray-100 text-gray-600';
+                let statusLabel = user.status;
+
+                if (user.status === 'ACTIVATE') {
+                    statusClass = 'bg-green-100 text-green-800';
+                    statusLabel = 'Hoạt động';
+                } else if (user.status === 'BANNED') {
+                    statusClass = 'bg-red-100 text-red-800';
+                    statusLabel = 'Đã khóa';
+                } else if (user.status === 'DISABLE') {
+                    statusClass = 'bg-gray-100 text-gray-600';
+                    statusLabel = 'Vô hiệu';
+                } else if (user.status === 'CANCEL') {
+                    statusClass = 'bg-orange-100 text-orange-800';
+                    statusLabel = 'Đã hủy';
+                }
+
+                const statusBadge = `<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">${statusLabel}</span>`;
+
+                // Note: Ảnh đại diện mặc định
+                const avatarImg = user.avatar 
+                    ? `<img class="h-10 w-10 rounded-full object-cover border border-gray-200" src="${user.avatar}" alt="">`
+                    : `<div class="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-white font-bold">${user.fullName.charAt(0).toUpperCase()}</div>`;
+
+                return `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0 h-10 w-10">${avatarImg}</div>
+                                <div class="ml-4">
+                                    <div class="text-sm font-medium text-gray-900">${user.fullName}</div>
+                                    <div class="text-xs text-gray-500">Tham gia: ${new Date(user.createdAt).toLocaleDateString('vi-VN')}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900">ID: #${user.id}</div>
+                            <div class="text-xs text-gray-500">${user.email}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">${typeBadge}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${statusBadge}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <!-- (Note: Hiển thị nút Khóa nếu tài khoản đang hoạt động và Mở khóa nếu đang bị BANNED) -->
+                            ${user.status !== 'BANNED' 
+                                ? `<button onclick="openBanModal(${user.id}, '${user.fullName}', 'lock')" class="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1 rounded transition-colors">Khóa</button>` 
+                                : `<button onclick="openBanModal(${user.id}, '${user.fullName}', 'unlock')" class="text-primary hover:text-primaryHover bg-green-50 hover:bg-green-100 px-3 py-1 rounded transition-colors">Mở khóa</button>`}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Hiển thị thông tin phân trang
+         * (Note: Cập nhật chỉ số trang và trạng thái nút bấm)
+         */
+        function renderPagination() {
+            const startRange = state.total === 0 ? 0 : (state.page - 1) * state.limit + 1;
+            const endRange = Math.min(state.page * state.limit, state.total);
+            
+            document.getElementById('itemRange').innerText = `${startRange} - ${endRange}`;
+            document.getElementById('totalItems').innerText = state.total;
+            document.getElementById('pageInfo').innerText = `Trang ${state.page} / ${state.totalPages || 1}`;
+
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+
+            prevBtn.disabled = state.page <= 1;
+            prevBtn.classList.toggle('opacity-50', state.page <= 1);
+            prevBtn.classList.toggle('cursor-not-allowed', state.page <= 1);
+
+            nextBtn.disabled = state.page >= state.totalPages;
+            nextBtn.classList.toggle('opacity-50', state.page >= state.totalPages);
+            nextBtn.classList.toggle('cursor-not-allowed', state.page >= state.totalPages);
+        }
+
+        function changePage(newPage) {
+            if (newPage >= 1 && newPage <= state.totalPages) {
+                state.page = newPage;
+                fetchUsers();
+            }
+        }
+
+        /**
+         * Mở modal xác nhận Khóa hoặc Mở khóa
+         * (Note: Cấu hình nội dung modal tùy theo hành động lock hay unlock)
+         */
+        let currentAction = 'lock'; // Mặc định là khóa
+
+        function openBanModal(userId, fullName, action) {
+            selectedUserId = userId;
+            currentAction = action;
+            document.getElementById('banUserName').innerText = `Người dùng: ${fullName}`;
+            
+            const modalTitle = document.getElementById('banModalTitle');
+            const modalMessage = document.getElementById('banModalMessage');
+            const confirmBtn = document.getElementById('confirmBanBtn');
+
+            if (action === 'lock') {
+                modalTitle.innerText = 'Xác nhận khóa tài khoản';
+                modalMessage.innerText = 'Bạn có chắc muốn khóa tài khoản này? Hành động này sẽ khóa tài khoản và gửi email cảnh báo tới người dùng. Người dùng sẽ không thể đăng nhập vào ứng dụng.';
+                confirmBtn.classList.remove('bg-primary', 'hover:bg-primaryHover');
+                confirmBtn.classList.add('bg-red-600', 'hover:bg-red-700');
+            } else {
+                modalTitle.innerText = 'Xác nhận mở khóa tài khoản';
+                modalMessage.innerText = 'Bạn có chắc muốn mở khóa tài khoản này? Người dùng sẽ có thể đăng nhập lại bình thường.';
+                confirmBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                confirmBtn.classList.add('bg-primary', 'hover:bg-primaryHover');
+            }
+
+            document.getElementById('banModal').classList.remove('hidden');
+        }
+
+        function closeBanModal() {
+            document.getElementById('banModal').classList.add('hidden');
+            selectedUserId = null;
+        }
+
+        /**
+         * Xử lý xác nhận hành động (Khóa hoặc Mở khóa)
+         * (Note: Gửi yêu cầu PATCH tới API tương ứng)
+         */
+        async function handleConfirmAction() {
+            if (!selectedUserId) return;
+
+            const btn = document.getElementById('confirmBanBtn');
+            const originalText = btn.innerText;
+            btn.innerText = 'Đang xử lý...';
+            btn.disabled = true;
+
+            const url = currentAction === 'lock' 
+                ? `/admin/api/users/${selectedUserId}/ban` 
+                : `/admin/api/users/${selectedUserId}/unban`;
+            
+            const successMsg = currentAction === 'lock' 
+                ? 'Đã khóa tài khoản thành công' 
+                : 'Đã mở khóa tài khoản thành công';
+
+            try {
+                const response = await fetch(url, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showToast(successMsg);
+                    fetchUsers(); // Tải lại danh sách
+                } else {
+                    alert(data.message || 'Lỗi khi thực hiện hành động');
+                }
+            } catch (error) {
+                console.error('Action error:', error);
+                alert('Lỗi kết nối máy chủ');
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                closeBanModal();
+            }
+        }
+
+        /**
+         * Hiển thị thông báo nhanh (Toast)
+         * (Note: Đồng bộ với hiệu ứng trang Category)
+         */
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.add('toast-active');
+            
+            setTimeout(() => {
+                toast.classList.remove('toast-active');
+            }, 3000);
+        }
+
+        // Note: Khởi tạo dữ liệu khi trang tải xong
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchUsers();
+        });
+    </script>
+</body>
+
+</html>

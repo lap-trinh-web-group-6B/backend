@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cấu hình hệ thống - Monety Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00BBA7',
+                        primaryHover: '#009e8d'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .toast-active { transform: translateX(0) !important; opacity: 1 !important; }
+    </style>
+</head>
+
+<body class="bg-gray-100 font-sans leading-normal tracking-normal flex h-screen overflow-hidden">
+
+    <%- include('partials/sidebar') %>
+
+    <div class="flex-1 flex flex-col h-screen overflow-hidden">
+        <%- include('partials/header', { pageTitle: 'Cấu hình hệ thống' }) %>
+
+        <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 md:p-6">
+            <div class="max-w-4xl mx-auto">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Cấu hình Hệ thống</h2>
+                    <p class="text-sm text-gray-500 mt-1">Cấu hình giá bán gói Premium và thông tin tài khoản nhận thanh toán VietQR.</p>
+                </div>
+
+                <form id="settingsForm" onsubmit="handleSaveSettings(event)" class="space-y-6">
+                    <!-- Section: Gói Premium -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div class="p-6 border-b border-gray-100 bg-gray-50/50">
+                            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <span class="text-amber-500 text-xl"></span> Cấu hình Gói Premium
+                            </h3>
+                            <p class="text-xs text-gray-400 mt-0.5">Đặt mức giá bán trọn đời của tài khoản Premium.</p>
+                        </div>
+                        <div class="p-6 space-y-4">
+                            <div>
+                                <label for="premium_price" class="block text-sm font-bold text-gray-700 mb-1">Giá bán gói PREMIUM (VNĐ)</label>
+                                <div class="relative rounded-md shadow-sm max-w-xs">
+                                    <input type="number" name="premium_price" id="premium_price" required min="1000"
+                                        class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-bold text-amber-600"
+                                        placeholder="Ví dụ: 2000" value="<%= configs.premium_price %>">
+                                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <span class="text-gray-500 text-sm font-semibold">VND</span>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-400 mt-1.5">Số tiền tối thiểu là 1,000 VNĐ. Giá trị này sẽ được hiển thị khi người dùng nâng cấp gói.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Section: Thông tin Thanh toán -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div class="p-6 border-b border-gray-100 bg-gray-50/50">
+                            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <span class="text-teal-500 text-xl"></span>Thông tin tài khoản nhận tiền (VietQR)
+                            </h3>
+                            <p class="text-xs text-gray-400 mt-0.5">Cấu hình tài khoản ngân hàng để tạo mã QR thanh toán tự động.</p>
+                        </div>
+                        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Ngân hàng -->
+                            <div>
+                                <label for="bank_name" class="block text-sm font-bold text-gray-700 mb-1">Tên ngân hàng</label>
+                                <input type="text" name="bank_name" id="bank_name" required
+                                    class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-gray-800"
+                                    placeholder="Ví dụ: MBBank, VietinBank" value="<%= configs.bank_name %>">
+                                <p class="text-xs text-gray-400 mt-1">Tên hiển thị của ngân hàng trên màn hình thanh toán.</p>
+                            </div>
+
+                            <!-- Mã BIN ngân hàng -->
+                            <div>
+                                <label for="bank_bin" class="block text-sm font-bold text-gray-700 mb-1">Mã BIN ngân hàng</label>
+                                <input type="text" name="bank_bin" id="bank_bin" required pattern="[0-9]{6}"
+                                    class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-mono text-gray-800"
+                                    placeholder="Mã BIN 6 chữ số (Ví dụ: MBBank là 970422, VietinBank là 970405)" value="<%= configs.bank_bin %>">
+                                <p class="text-xs text-gray-400 mt-1">Mã BIN 6 chữ số của ngân hàng để tạo link ảnh VietQR.</p>
+                            </div>
+
+                            <!-- Số tài khoản -->
+                            <div>
+                                <label for="bank_account" class="block text-sm font-bold text-gray-700 mb-1">Số tài khoản ngân hàng</label>
+                                <input type="text" name="bank_account" id="bank_account" required
+                                    class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-bold text-gray-800"
+                                    placeholder="Ví dụ: 0345388317" value="<%= configs.bank_account %>">
+                                <p class="text-xs text-gray-400 mt-1">Số tài khoản nhận tiền chính xác để tạo mã QR.</p>
+                            </div>
+
+                            <!-- Tên chủ tài khoản -->
+                            <div>
+                                <label for="bank_owner_name" class="block text-sm font-bold text-gray-700 mb-1">Tên chủ tài khoản (viết hoa không dấu)</label>
+                                <input type="text" name="bank_owner_name" id="bank_owner_name" required
+                                    class="border border-gray-300 rounded-lg px-3 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary uppercase font-bold text-gray-800"
+                                    placeholder="Ví dụ: NGUYEN VAN A" value="<%= configs.bank_owner_name %>">
+                                <p class="text-xs text-gray-400 mt-1">Tên người thụ hưởng hiển thị trên màn hình thanh toán.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit & Trạng thái -->
+                    <div class="flex items-center justify-end gap-4">
+                        <button type="submit" id="saveBtn"
+                            class="px-6 py-3 bg-primary hover:bg-primaryHover text-white font-bold text-sm rounded-lg shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 flex items-center gap-2">
+                            <span>Lưu cấu hình</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-4 right-4 z-50 transform transition-all duration-300 translate-x-full opacity-0">
+        <div class="bg-primary text-white px-6 py-3 rounded-lg shadow-lg flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            <span id="toastMsg">Thành công!</span>
+        </div>
+    </div>
+
+    <script>
+        async function handleSaveSettings(event) {
+            event.preventDefault();
+            
+            const btn = document.getElementById('saveBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Đang lưu...';
+            btn.disabled = true;
+
+            const formData = new FormData(event.target);
+            const bodyData = {
+                premium_price: formData.get('premium_price'),
+                bank_name: formData.get('bank_name'),
+                bank_bin: formData.get('bank_bin'),
+                bank_account: formData.get('bank_account'),
+                bank_owner_name: formData.get('bank_owner_name').toUpperCase()
+            };
+
+            try {
+                const response = await fetch('/admin/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(bodyData)
+                });
+
+                const resData = await response.json();
+
+                if (response.ok && resData.status === 'success') {
+                    showToast('Đã cập nhật cấu hình hệ thống thành công!');
+                } else {
+                    alert(resData.message || 'Lỗi khi lưu cấu hình');
+                }
+            } catch (error) {
+                console.error('Save settings error:', error);
+                alert('Lỗi kết nối máy chủ');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.add('toast-active');
+            
+            setTimeout(() => {
+                toast.classList.remove('toast-active');
+            }, 3000);
+        }
+    </script>
+</body>
+
+</html>

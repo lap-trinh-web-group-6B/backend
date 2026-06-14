@@ -1,5 +1,5 @@
 import {prisma} from '../config/database.js';
-import { sendOtpEmail } from '../utils/resend.js';
+import { sendOtpEmail } from '../utils/mailSender.js';
 
 const generateOtp = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
