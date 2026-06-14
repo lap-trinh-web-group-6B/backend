@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý danh mục - Monety Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00BBA7',
+                        primaryHover: '#009e8d'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Tránh lỗi script khi load trang -->
+    <style>
+        .toast-enter {
+            transform: translateY(100%);
+            opacity: 0;
+        }
+
+        .toast-enter-active {
+            transform: translateY(0);
+            opacity: 1;
+            transition: all 300ms ease-out;
+        }
+
+        .toast-exit {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast-exit-active {
+            transform: translateY(-100%);
+            opacity: 0;
+            transition: all 300ms ease-in;
+        }
+
+        [v-cloak] {
+            display: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 font-sans leading-normal tracking-normal flex h-screen overflow-hidden">
+
+    <%- include('partials/sidebar') %>
+
+        <div class="flex-1 flex flex-col h-screen overflow-hidden">
+            <%- include('partials/header', { pageTitle: 'Quản lý danh mục' }) %>
+
+                <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 md:p-6">
+                    <div class="max-w-7xl mx-auto">
+
+                        <!-- Thanh công cụ lọc và Tab nguồn -->
+                        <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+                            <div
+                                class="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
+
+                                <!-- Tabs điều hướng System vs User (Note: Tab chuyển đổi nhóm) -->
+                                <div class="flex bg-gray-100 p-1 rounded-lg">
+                                    <button id="tabSystem" onclick="changeSource('system')"
+                                        class="px-4 py-2 rounded-md bg-white shadow text-sm font-medium text-primary transition-all">Danh
+                                        mục hệ thống</button>
+                                    <button id="tabUser" onclick="changeSource('mine')"
+                                        class="px-4 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-700 transition-all">Danh
+                                        mục người dùng</button>
+                                </div>
+
+                                <!-- Block Filter (Note: Lọc thông minh theo loại và search name) -->
+                                <div
+                                    class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 w-full md:w-auto">
+                                    <select id="filterType" onchange="fetchCategories()"
+                                        class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary">
+                                        <option value="">Tất cả phân loại</option>
+                                        <option value="INCOME">Thu nhập</option>
+                                        <option value="EXPENSE">Chi tiêu</option>
+                                    </select>
+
+                                    <div class="relative w-full sm:w-64">
+                                        <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                            </svg>
+                                        </span>
+                                        <input type="text" id="searchInput" placeholder="Tìm kiếm tên..."
+                                            class="border border-gray-300 rounded-md pl-10 pr-3 py-2 text-sm w-full focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                            onkeydown="if(event.key === 'Enter') fetchCategories()">
+                                    </div>
+
+                                    <button id="addBtn" onclick="openModal('add')"
+                                        class="bg-primary hover:bg-primaryHover text-white px-4 py-2 rounded-md text-sm font-medium shadow-sm flex items-center transition-colors break-keep">
+                                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                        </svg>
+                                        <span class="whitespace-nowrap">Thêm mới</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Block Table Data (Note: Hiển thị list category fetch từ API nội bộ req) -->
+                        <div class="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th scope="col"
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                ID</th>
+                                            <th scope="col"
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                                                onclick="toggleSort()">
+                                                <div class="flex items-center">
+                                                    Tên danh mục
+                                                    <svg id="sortIcon" class="w-4 h-4 ml-1 text-gray-400" fill="none"
+                                                        stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round"
+                                                            stroke-width="2"
+                                                            d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"></path>
+                                                    </svg>
+                                                </div>
+                                            </th>
+                                            <th scope="col"
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Loại</th>
+                                            <th scope="col"
+                                                class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Trạng thái</th>
+                                            <th scope="col"
+                                                class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Hành động</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tableBody" class="bg-white divide-y divide-gray-200">
+                                        <!-- Du lieu duoc render tu FETCH API Javascript -->
+                                        <tr>
+                                            <td colspan="5" class="px-6 py-10 text-center"><svg
+                                                    class="animate-spin h-5 w-5 mr-3 text-primary inline"
+                                                    viewBox="0 0 24 24">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10"
+                                                        stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-75" fill="currentColor"
+                                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                                                    </path>
+                                                </svg> Đang tải...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Phân trang -->
+                            <!-- (Note: Điều khiển trang tiếp theo/trước đó) -->
+                            <div
+                                class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6 flex items-center justify-between">
+                                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                                    <div>
+                                        <p class="text-sm text-gray-700">
+                                            Tổng số <span id="totalItems" class="font-medium">0</span> kết quả
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
+                                            aria-label="Pagination">
+                                            <button onclick="changePage(state.page - 1)" id="btnPrev"
+                                                class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                                <span class="sr-only">Previous</span>
+                                                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd"
+                                                        d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+                                                        clip-rule="evenodd" />
+                                                </svg>
+                                            </button>
+                                            <span id="pageIndicator"
+                                                class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                                Trang 1 / 1
+                                            </span>
+                                            <button onclick="changePage(state.page + 1)" id="btnNext"
+                                                class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                                <span class="sr-only">Next</span>
+                                                <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd"
+                                                        d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                                                        clip-rule="evenodd" />
+                                                </svg>
+                                            </button>
+                                        </nav>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </main>
+        </div>
+
+        <!-- Toast Notification (Note: Hiển thị nhanh TB thành công) -->
+        <div id="toast"
+            class="fixed top-4 right-4 z-50 transform transition-all duration-300 translate-x-full opacity-0">
+            <div class="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <span id="toastMsg">Thành công!</span>
+            </div>
+        </div>
+
+        <!-- Modal Form: Add / Edit -->
+        <!-- (Note: Dialog overlay để nhập liệu) -->
+        <div id="categoryModal" class="fixed z-50 inset-0 hidden overflow-y-auto" aria-labelledby="modal-title"
+            role="dialog" aria-modal="true">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <!-- Modal backdrop -->
+                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 backdrop-blur-sm transition-opacity"
+                    aria-hidden="true" onclick="closeModal()"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                <div
+                    class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                    <!-- Header Component of modal -->
+                    <div class="bg-gray-50 px-4 py-3 border-b">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900" id="modalTitle">Thêm mới danh mục</h3>
+                    </div>
+
+                    <form id="categoryForm" onsubmit="submitForm(event)">
+                        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                            <input type="hidden" id="categoryId">
+
+                            <div class="mb-4">
+                                <label for="name" class="block text-sm font-medium text-gray-700">Tên danh mục <span
+                                        class="text-red-500">*</span></label>
+                                <input type="text" id="name" required
+                                    class="mt-1 focus:ring-primary focus:border-primary block w-full shadow-sm sm:text-sm border-gray-300 rounded-md py-2 px-3 border">
+                                <p id="nameError" class="mt-1 text-xs text-red-500 hidden"></p>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="type" class="block text-sm font-medium text-gray-700">Loại thu/chi <span
+                                        class="text-red-500">*</span></label>
+                                <select id="type" required
+                                    class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
+                                    <option value="EXPENSE">Chi tiêu (EXPENSE)</option>
+                                    <option value="INCOME">Thu nhập (INCOME)</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-4" id="statusBlock">
+                                <label for="status" class="block text-sm font-medium text-gray-700">Trạng thái</label>
+                                <select id="status"
+                                    class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
+                                    <option value="ACTIVATE">Hoạt động (ACTIVATE)</option>
+                                    <option value="DISABLED">Tạm khóa (DISABLED)</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-2">
+                                <label for="icon_url" class="block text-sm font-medium text-gray-700">Hình ảnh Icon (tùy
+                                    chọn)</label>
+                                <!-- (Note: Thay doi input tu type URL sang dang tap tin) -->
+                                <input type="file" id="icon_url" accept="image/png, image/jpeg, image/webp"
+                                    class="mt-1 focus:ring-primary focus:border-primary block w-full shadow-sm sm:text-sm border-gray-300 rounded-md py-2 px-3 border bg-white file:mr-4 file:py-1 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primaryHover cursor-pointer">
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t">
+                            <!-- Submit call lưu danh mục (Note: Nút lưu form thay vì POST trực tuyến HTML ta dùng JS submit) -->
+                            <button type="submit"
+                                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-base font-medium text-white hover:bg-primaryHover focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
+                                Lưu thông tin
+                            </button>
+                            <button type="button" onclick="closeModal()"
+                                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                                Hủy bỏ
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Form: Chi tiết (View) -->
+        <div id="viewModal" class="fixed z-50 inset-0 hidden overflow-y-auto" aria-labelledby="modal-title"
+            role="dialog" aria-modal="true">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 backdrop-blur-sm transition-opacity"
+                    aria-hidden="true" onclick="closeViewModal()"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                <div
+                    class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+
+                    <div class="bg-primary px-4 py-3 sm:px-6 flex justify-between items-center rounded-t-lg">
+                        <h3 class="text-lg leading-6 font-medium text-white" id="modalTitle">Chi tiết danh mục</h3>
+                        <button onclick="closeViewModal()" class="text-white hover:text-gray-200 focus:outline-none">
+                            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <div class="space-y-4">
+                            <!-- Icon / Avatar -->
+                            <div class="flex justify-center mb-6">
+                                <div id="viewIconContainer"
+                                    class="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border-4 border-gray-50 shadow-sm">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-4 border-b border-gray-100 pb-3">
+                                <div class="col-span-1 text-sm font-medium text-gray-500">Mã ID</div>
+                                <div class="col-span-2 text-sm text-gray-900" id="viewId"></div>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-4 border-b border-gray-100 pb-3">
+                                <div class="col-span-1 text-sm font-medium text-gray-500">Tên danh mục</div>
+                                <div class="col-span-2 text-sm text-gray-900 font-semibold" id="viewName"></div>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-4 border-b border-gray-100 pb-3">
+                                <div class="col-span-1 text-sm font-medium text-gray-500">Phân loại</div>
+                                <div class="col-span-2 text-sm text-gray-900" id="viewType"></div>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-4 border-b border-gray-100 pb-3">
+                                <div class="col-span-1 text-sm font-medium text-gray-500">Trạng thái</div>
+                                <div class="col-span-2 text-sm text-gray-900" id="viewStatus"></div>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-4 border-b border-gray-100 pb-3">
+                                <div class="col-span-1 text-sm font-medium text-gray-500">Người tạo</div>
+                                <div class="col-span-2 text-sm text-gray-900" id="viewOwner"></div>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-4 border-gray-100 pb-1">
+                                <div class="col-span-1 text-sm font-medium text-gray-500">Ngày tạo</div>
+                                <div class="col-span-2 text-sm text-gray-900" id="viewCreatedAt"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg border-t">
+                        <button type="button" onclick="closeViewModal()"
+                            class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:w-auto sm:text-sm transition-colors">
+                            Đóng cửa sổ
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Script điều khiển chức năng AJAX gọi tới API V1 Node.js bên dưới Controller Admin -->
+        <script>
+            // Data Store (Note: Quản lý biến local bằng JavaScript)
+            let state = {
+                source: 'system', // Default tab "Danh mục hệ thống"
+                page: 1,
+                limit: 10,
+                sort: 'name_asc', // Sắp xếp a-z mặc định
+                search: '',
+                type: '',
+                totalPages: 1,
+                total: 0,
+                items: []
+            };
+            let modalMode = 'add'; // add hoac edit
+
+            // ================= LOGIC FETCH DỮ LIỆU =================
+            // (Note: Cập nhật hàm fetch danh sách categories qua API v1)
+            async function fetchCategories() {
+                state.search = document.getElementById('searchInput').value;
+                state.type = document.getElementById('filterType').value;
+
+                const tbody = document.getElementById('tableBody');
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-6 text-center text-sm text-gray-500">Đang tải biểu mẫu...</td></tr>`;
+
+                const queryParams = new URLSearchParams({
+                    page: state.page,
+                    limit: state.limit,
+                    sort: state.sort,
+                    source: state.source,
+                    ...(state.search && { search: state.search }),
+                    ...(state.type && { type: state.type })
+                });
+
+                try {
+                    // (Note: Fetch API nội bộ /admin/api/categories, trình duyệt sẽ tự gán Cookie lên header)
+                    const res = await fetch(`/admin/api/categories?${queryParams.toString()}`);
+                    const responseData = await res.json();
+
+                    if (responseData.status === 200) {
+                        state.items = responseData.data.items;
+                        state.total = responseData.data.total;
+                        state.totalPages = responseData.data.totalPages;
+                        renderTable();
+                        renderPagination();
+                    } else if (res.status === 401) {
+                        window.location.href = '/admin/login'; // Mất cookie -> login lại
+                    }
+                } catch (err) {
+                    console.error("Lỗi fetch:", err);
+                    tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">Lỗi lấy dữ liệu</td></tr>`;
+                }
+            }
+
+            // ================= RENDERING =================
+            function renderTable() {
+                const tbody = document.getElementById('tableBody');
+                if (state.items.length === 0) {
+                    tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-10 text-center text-gray-500 flex flex-col items-center">
+                            <svg class="h-10 w-10 text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                            Không có kết quả
+                        </td>
+                    </tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = state.items.map(cat => `
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">#${cat.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            ${cat.icon_url ? `<img src="${cat.icon_url}" class="w-6 h-6 mr-3 rounded-full object-cover">` : `<div class="w-6 h-6 mr-3 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-500">${cat.name.charAt(0)}</div>`}
+                            <span class="text-sm font-medium text-gray-900">${cat.name}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${cat.type === 'INCOME' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
+                            ${cat.type === 'INCOME' ? 'Thu nhập' : 'Chi tiêu'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${cat.status === 'ACTIVATE' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}">
+                            ${cat.status === 'ACTIVATE' ? 'Hoạt động' : 'Đã khóa'}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick='openViewModal(${JSON.stringify(cat).replace(/'/g, "&#39;")})' class="text-primary hover:text-primaryHover mr-3 font-medium transition-colors">Xem</button>
+                        ${state.source === 'system' ?
+                        `<button onclick='openEditModal(${JSON.stringify(cat).replace(/'/g, "&#39;")})' class="text-indigo-600 hover:text-indigo-900 mr-1 transition-colors">Sửa</button>` :
+                        `<span class="text-gray-400 italic text-xs">User quản lý</span>`
+                    }
+                    </td>
+                </tr>
+            `).join('');
+            }
+
+            function renderPagination() {
+                document.getElementById('totalItems').innerText = state.total;
+                document.getElementById('pageIndicator').innerText = `Trang ${state.page} / ${state.totalPages || 1}`;
+
+                document.getElementById('btnPrev').disabled = state.page <= 1;
+                document.getElementById('btnPrev').classList.toggle('opacity-50', state.page <= 1);
+                document.getElementById('btnPrev').classList.toggle('cursor-not-allowed', state.page <= 1);
+
+                document.getElementById('btnNext').disabled = state.page >= state.totalPages;
+                document.getElementById('btnNext').classList.toggle('opacity-50', state.page >= state.totalPages);
+                document.getElementById('btnNext').classList.toggle('cursor-not-allowed', state.page >= state.totalPages);
+            }
+
+            // ================= CÁC SỰ KIỆN TƯƠNG TÁC =================
+
+            // (Note: Chuyển đổi tab source system hoặc user_owned)
+            function changeSource(origin) {
+                state.source = origin;
+                state.page = 1;
+
+                const tabSystem = document.getElementById('tabSystem');
+                const tabUser = document.getElementById('tabUser');
+                const addBtn = document.getElementById('addBtn');
+
+                if (origin === 'system') {
+                    tabSystem.className = "px-4 py-2 rounded-md bg-white shadow text-sm font-medium text-primary transition-all";
+                    tabUser.className = "px-4 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-700 transition-all";
+                    addBtn.classList.remove('hidden');
+                } else {
+                    tabUser.className = "px-4 py-2 rounded-md bg-white shadow text-sm font-medium text-primary transition-all";
+                    tabSystem.className = "px-4 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-700 transition-all";
+                    addBtn.classList.add('hidden'); // Khong cho phep them user category o admin
+                }
+
+                fetchCategories();
+            }
+
+            function changePage(newPage) {
+                if (newPage >= 1 && newPage <= state.totalPages) {
+                    state.page = newPage;
+                    fetchCategories();
+                }
+            }
+
+            function toggleSort() {
+                // (Note: Đổi tên sort a-z -> z-a)
+                state.sort = state.sort === 'name_asc' ? 'name_desc' : 'name_asc';
+                fetchCategories();
+            }
+
+            // ================= LOGIC MODAL & FORM =================
+            function openViewModal(catObj) {
+                document.getElementById('viewId').innerText = '#' + catObj.id;
+                document.getElementById('viewName').innerText = catObj.name;
+
+                const typeEl = document.getElementById('viewType');
+                if (catObj.type === 'INCOME') {
+                    typeEl.innerHTML = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Thu nhập</span>';
+                } else {
+                    typeEl.innerHTML = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Chi tiêu</span>';
+                }
+
+                const statusEl = document.getElementById('viewStatus');
+                if (catObj.status === 'ACTIVATE') {
+                    statusEl.innerHTML = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Hoạt động</span>';
+                } else {
+                    statusEl.innerHTML = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Đã khóa</span>';
+                }
+
+                document.getElementById('viewOwner').innerText = catObj.user_id ? `User ID #${catObj.user_id}` : 'Hệ thống (Mặc định)';
+
+                const createdDate = catObj.createdAt ? new Date(catObj.createdAt).toLocaleString('vi-VN') : 'Không có dữ liệu';
+                document.getElementById('viewCreatedAt').innerText = createdDate;
+
+                const iconContainer = document.getElementById('viewIconContainer');
+                if (catObj.icon_url) {
+                    iconContainer.innerHTML = `<img src="${catObj.icon_url}" class="w-full h-full object-cover">`;
+                } else {
+                    iconContainer.innerHTML = `<span class="text-3xl text-gray-400 font-bold">${catObj.name.charAt(0)}</span>`;
+                }
+
+                document.getElementById('viewModal').classList.remove('hidden');
+            }
+
+            function closeViewModal() {
+                document.getElementById('viewModal').classList.add('hidden');
+            }
+
+            function openModal(mode) {
+                modalMode = mode;
+                document.getElementById('nameError').classList.add('hidden');
+
+                if (mode === 'add') {
+                    document.getElementById('modalTitle').innerText = 'Thêm mới danh mục';
+                    document.getElementById('categoryForm').reset();
+                    document.getElementById('categoryId').value = '';
+                    document.getElementById('statusBlock').classList.add('hidden'); // Mac dinh system add la ACTIVATE ko can show
+                }
+
+                document.getElementById('categoryModal').classList.remove('hidden');
+            }
+
+            function openEditModal(catObj) {
+                modalMode = 'edit';
+                document.getElementById('nameError').classList.add('hidden');
+                document.getElementById('modalTitle').innerText = 'Chỉnh sửa danh mục hệ thống';
+
+                document.getElementById('categoryId').value = catObj.id;
+                document.getElementById('name').value = catObj.name;
+                document.getElementById('type').value = catObj.type;
+                document.getElementById('status').value = catObj.status;
+                // (Note: Khong the binding truc tiep string vao the file do bao mat HTML5, reset ve trong)
+                document.getElementById('icon_url').value = '';
+                document.getElementById('statusBlock').classList.remove('hidden'); // Hien thi thay doi status
+
+                document.getElementById('categoryModal').classList.remove('hidden');
+            }
+
+            function closeModal() {
+                document.getElementById('categoryModal').classList.add('hidden');
+            }
+
+            // (Note: Gửi form lên /api/v1/categories bằng javascript thay vì form target)
+            async function submitForm(e) {
+                e.preventDefault();
+
+                // (Note: Thay FormData JSON string sang FormData Object de attach file qua giao thuc multipart)
+                const formData = new FormData();
+                formData.append('name', document.getElementById('name').value);
+                formData.append('type', document.getElementById('type').value);
+
+                const fileInput = document.getElementById('icon_url');
+                if (fileInput.files && fileInput.files.length > 0) {
+                    formData.append('icon', fileInput.files[0]);
+                }
+
+                const id = document.getElementById('categoryId').value;
+                // Neu form edit, push status vao
+                if (modalMode === 'edit') {
+                    formData.append('status', document.getElementById('status').value);
+                }
+
+                const url = modalMode === 'add' ? '/admin/api/categories' : `/admin/api/categories/${id}`;
+                const method = modalMode === 'add' ? 'POST' : 'PATCH';
+
+                try {
+                    const res = await fetch(url, {
+                        method: method,
+                        // (Note: Loai bo Content-Type application/json de header tu phat hien File boundary)
+                        body: formData
+                    });
+
+                    const data = await res.json();
+
+                    if (res.ok) {
+                        closeModal();
+                        showToast(modalMode === 'add' ? 'Thêm mới danh mục thành công!' : 'Đã lưu thay đổi.');
+                        fetchCategories(); // Reload tab
+                    } else if (res.status === 400 && data.name) {
+                        // Trung ten voi ten he thong
+                        const titleErr = document.getElementById('nameError');
+                        titleErr.innerText = data.name;
+                        titleErr.classList.remove('hidden');
+                    } else {
+                        alert('Lỗi: ' + (data.message || 'Hệ thống lỗi'));
+                    }
+                } catch (err) {
+                    alert('Có lỗi hệ thống kết nối.');
+                }
+            }
+
+            // ================= HIỆN TOAST THÔNG BÁO =================
+            // (Note: Dịch chuyển thông báo nhanh)
+            function showToast(msg) {
+                const toast = document.getElementById('toast');
+                document.getElementById('toastMsg').innerText = msg;
+
+                // Xoa class truoc khi them the animation
+                toast.classList.remove('translate-x-full', 'opacity-0');
+                toast.classList.add('translate-x-0', 'opacity-100');
+
+                setTimeout(() => {
+                    toast.classList.remove('translate-x-0', 'opacity-100');
+                    toast.classList.add('translate-x-full', 'opacity-0');
+                }, 3000); // Tu dong an sau 3s
+            }
+
+            // ================= INIT START =================
+            document.addEventListener('DOMContentLoaded', () => {
+                fetchCategories();
+            });
+        </script>
+</body>
+
+</html>

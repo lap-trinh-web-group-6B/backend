@@ -117,6 +117,17 @@ export const categoryController = {
             if (existingSystemCategory) {
                 return jsonResponse(res, 400, 'Lỗi', {name: 'Tên danh mục trùng với danh mục hệ thống'});
             }
+
+            const existingUserCategory = await prisma.categories.findFirst({
+                where: {
+                    name_normalized: normalizedName,
+                    user_id: userId
+                }
+            });
+
+            if (existingUserCategory) {
+                return jsonResponse(res, 400, 'Lỗi', {name: 'Bạn đã tạo danh mục với tên này trước đó'});
+            }
             const newCategory = await prisma.categories.create({
                 data: {
                     name,
@@ -139,7 +150,6 @@ export const categoryController = {
             const userId = req.user.id;
             const categoryId = req.params.id;
             const {name, type, status} = req.body;
-            let icon_url = req.body.icon_url;
 
             const category = await prisma.categories.findUnique({
                 where: {
@@ -156,6 +166,8 @@ export const categoryController = {
             if (category.user_id !== userId) {
                 return jsonResponse(res, 403, 'Bạn không có quyền chỉnh sửa danh mục này', null);
             }
+
+            const dataToUpdate = {};
             if (name && normalizeVietnamese(name) !== category.name_normalized) {
                 const normalizedName = normalizeVietnamese(name);
                 const existingSystemCategory = await prisma.categories.findFirst({
@@ -167,36 +179,57 @@ export const categoryController = {
                 if (existingSystemCategory) {
                     return jsonResponse(res, 400, 'Lỗi', {name: 'Tên danh mục trùng với danh mục hệ thống'});
                 }
-                category.name = name;
-                category.name_normalized = normalizedName;
+                const existingUserCategory = await prisma.categories.findFirst({
+                    where: {
+                        name_normalized: normalizedName,
+                        user_id: userId,
+                        id: {
+                            not: Number(categoryId)
+                        }
+                    }
+                });
+                if (existingUserCategory) {
+                    return jsonResponse(res, 400, 'Lỗi', {name: 'Bạn đã tạo danh mục với tên này trước đó'});
+                }
+                dataToUpdate.name = name;
+                dataToUpdate.name_normalized = normalizedName;
             }
-            if (type && ['INCOME', 'EXPENSE'].includes(type)) category.type = type;
+            if (type && ['INCOME', 'EXPENSE'].includes(type)) {
+                dataToUpdate.type = type;
+            }
             if (req.file) {
                 if (category.icon_url && category.icon_url.startsWith('/uploads/')) {
                     deleteFile(category.icon_url);
                 }
-                category.icon_url = `/uploads/icons/${req.file.filename}`;
-            } else {
-                category.icon_url = null;
+                dataToUpdate.icon_url = `/uploads/icons/${req.file.filename}`;
+            } else if (req.body.delete_icon === 'true' || req.body.delete_icon === true) {
+                if (category.icon_url && category.icon_url.startsWith('/uploads/')) {
+                    deleteFile(category.icon_url);
+                }
+                dataToUpdate.icon_url = null;
             }
-            if (status && ['ACTIVATE', 'DISABLED'].includes(status)) category.status = status;
-            await prisma.categories.update({
+            if (status && ['ACTIVATE', 'DISABLED'].includes(status)) {
+                dataToUpdate.status = status;
+            }
+
+            const updatedCategory = await prisma.categories.update({
                 where: {
                     id: category.id
                 },
-                data: category
+                data: dataToUpdate
             });
-            return jsonResponse(res, 200, 'Thành công', category);
+            return jsonResponse(res, 200, 'Thành công', updatedCategory);
         } catch (error) {
             console.error('[Category] updateCategory error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi cập nhật danh mục', null);
         }
     },
     deleteCategory: async (req, res) => {
-
         try {
             const userId = req.user.id;
             const categoryId = Number(req.params.id);
+            const { mode = 'delete_all', targetCategoryId } = req.query;
+
             await prisma.$transaction(async (tx) => {
                 const category = await tx.categories.findUnique({
                     where: {
@@ -221,43 +254,87 @@ export const categoryController = {
                         message: 'Bạn không có quyền xóa danh mục này'
                     };
                 }
-                const transactions = await tx.transactions.findMany({
-                    where: {
-                        category_id: categoryId,
-                        user_id: userId
+
+                if (mode === 'merge') {
+                    if (!targetCategoryId) {
+                        throw {
+                            status: 400,
+                            message: 'Thiếu danh mục đích để gộp giao dịch'
+                        };
                     }
-                });
-                const walletUpdates = {};
-                for (const transaction of transactions) {
-                    const effect =
-                        category.type === 'EXPENSE' ? -1 : 1;
-                    const adjustment =
-                        Number(transaction.amount) * effect;
-                    if (!walletUpdates[transaction.wallet_id]) {
-                        walletUpdates[transaction.wallet_id] = 0;
+                    const targetId = Number(targetCategoryId);
+                    if (targetId === categoryId) {
+                        throw {
+                            status: 400,
+                            message: 'Danh mục đích không thể trùng với danh mục bị xóa'
+                        };
                     }
-                    walletUpdates[transaction.wallet_id] -= adjustment;
-                }
-                for (const [walletId, adjustment] of Object.entries(walletUpdates)) {
-                    const wallet = await tx.wallets.findFirst({
+                    const targetCategory = await tx.categories.findUnique({
                         where: {
-                            id: Number(walletId),
+                            id: targetId
+                        }
+                    });
+                    if (!targetCategory || (targetCategory.user_id !== null && targetCategory.user_id !== userId)) {
+                        throw {
+                            status: 404,
+                            message: 'Không tìm thấy danh mục đích hợp lệ'
+                        };
+                    }
+                    if (targetCategory.type !== category.type) {
+                        throw {
+                            status: 400,
+                            message: 'Danh mục đích phải cùng loại thu/chi với danh mục bị xóa'
+                        };
+                    }
+
+                    // Gộp giao dịch sang danh mục mới
+                    await tx.transactions.updateMany({
+                        where: {
+                            category_id: categoryId,
+                            user_id: userId
+                        },
+                        data: {
+                            category_id: targetId
+                        }
+                    });
+                } else {
+                    // Logic hiện tại: Xóa vĩnh viễn và hoàn lại tiền vào ví
+                    const transactions = await tx.transactions.findMany({
+                        where: {
+                            category_id: categoryId,
                             user_id: userId
                         }
                     });
-                    if (wallet) {
-
-                        await tx.wallets.update({
+                    const walletUpdates = {};
+                    for (const transaction of transactions) {
+                        const effect = category.type === 'EXPENSE' ? -1 : 1;
+                        const adjustment = Number(transaction.amount) * effect;
+                        if (!walletUpdates[transaction.wallet_id]) {
+                            walletUpdates[transaction.wallet_id] = 0;
+                        }
+                        walletUpdates[transaction.wallet_id] -= adjustment;
+                    }
+                    for (const [walletId, adjustment] of Object.entries(walletUpdates)) {
+                        const wallet = await tx.wallets.findFirst({
                             where: {
-                                id: wallet.id
-                            },
-                            data: {
-                                balance:
-                                    Number(wallet.balance) + adjustment
+                                id: Number(walletId),
+                                user_id: userId
                             }
                         });
+                        if (wallet) {
+                            await tx.wallets.update({
+                                where: {
+                                    id: wallet.id
+                                },
+                                data: {
+                                    balance: Number(wallet.balance) + adjustment
+                                }
+                            });
+                        }
                     }
                 }
+
+                // Xóa danh mục
                 await tx.categories.delete({
                     where: {
                         id: categoryId
@@ -268,17 +345,14 @@ export const categoryController = {
             return jsonResponse(
                 res,
                 200,
-                'Xóa danh mục và hoàn tiền ví thành công',
+                mode === 'merge'
+                    ? 'Xóa danh mục và gộp giao dịch thành công'
+                    : 'Xóa danh mục và hoàn tiền ví thành công',
                 null
             );
 
         } catch (error) {
-
-            console.error(
-                '[Category] deleteCategory error:',
-                error
-            );
-
+            console.error('[Category] deleteCategory error:', error);
             return jsonResponse(
                 res,
                 error.status || 500,

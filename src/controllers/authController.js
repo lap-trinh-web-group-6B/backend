@@ -73,8 +73,13 @@ export const authController = {
             const userData = newUser;
             await otpService.clearExpiredOtps().catch(console.error);
             const accessToken = generateAccessToken(userData);
+            const refreshToken = generateRefreshToken(userData);
+            await prisma.users.update({
+                where: { id: userData.id },
+                data: { refreshToken }
+            });
             const {password: userPassword, syncId, createdAt, ...safeUser} = userData;
-            return jsonResponse(res, 201, 'Tạo tài khoản thành công', {accessToken, user: safeUser});
+            return jsonResponse(res, 201, 'Tạo tài khoản thành công', {accessToken, refreshToken, user: safeUser});
         } catch (error) {
             return jsonResponse(res, 400, 'Lỗi đăng ký', {error: error.message});
         }
@@ -103,20 +108,20 @@ export const authController = {
                 },
             });
             if (!user) {
-                return jsonResponse(res, 400, 'Lỗi xác thực', {email: 'Email chưa đăng ký'});
+                return jsonResponse(res, 400, 'Email hoặc mật khẩu không chính xác', null);
             }
             switch (user.status) {
                 case 'BANNED':
                     return jsonResponse(res, 403, 'Bị chặn', {email: 'Tài khoản đã bị cấm'});
                 case 'CANCEL':
-                    return jsonResponse(res, 400, 'Lỗi xác thực', {email: 'Email chưa đăng ký'});
+                    return jsonResponse(res, 400, 'Email hoặc mật khẩu không chính xác', null);
                 case 'DISABLE':
                     // Theo nghiệp vụ, DISABLE vẫn có thể đăng nhập hoặc bạn có thể cấm
                     break;
             }
             const isPasswordValid = await argon2.verify(user.password, password);
             if (!isPasswordValid) {
-                return jsonResponse(res, 400, 'Sai thông tin', {password: 'Mật khẩu không đúng'});
+                return jsonResponse(res, 400, 'Email hoặc mật khẩu không chính xác', null);
             }
             const accessToken = generateAccessToken(user);
             const refreshToken = generateRefreshToken(user);
@@ -185,6 +190,9 @@ export const authController = {
                 return jsonResponse(res, 400, 'Dữ liệu sai', {password: 'Mật khẩu và Xác nhận mật khẩu không khớp'});
             }
             const decodedData = verifyToken(forgotPasswordToken);
+            if (decodedData.type !== 'forgot_password') {
+                return jsonResponse(res, 400, 'Mã xác thực không hợp lệ cho yêu cầu đặt lại mật khẩu', null);
+            }
             const user = await prisma.users.findUnique({
                 where: {
                     id: decodedData.id,

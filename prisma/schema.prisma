@@ -86,7 +86,9 @@ model transactions {
   status            transactions_status_enum @default(ACTIVATE)
   transaction_date  DateTime                 @db.Timestamp(6)
   createdAt         DateTime                 @default(now()) @db.Timestamp(6)
-  wallets           wallets                  @relation(fields: [wallet_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  wallets           wallets                  @relation("wallet_transactions", fields: [wallet_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  transfer_wallet_id Int?
+  transfer_wallets   wallets?                 @relation("transfer_transactions", fields: [transfer_wallet_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   categories        categories               @relation(fields: [category_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   users             users                    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 }
@@ -120,7 +122,8 @@ model wallets {
   type         wallets_type_enum
   status       wallets_status_enum @default(ACTIVATE)
   createdAt    DateTime            @default(now()) @db.Timestamp(6)
-  transactions transactions[]
+  transactions          transactions[]      @relation("wallet_transactions")
+  transfer_transactions transactions[]      @relation("transfer_transactions")
   users        users               @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "FK_92558c08091598f7a4439586cda")
 
   @@unique([user_id, name])
@@ -197,3 +200,10 @@ enum wallets_type_enum {
   BANK_ACCOUNT
   E_WALLET
 }
+
+model system_configs {
+  id    Int    @id @default(autoincrement())
+  key   String @unique @db.VarChar
+  value String @db.Text
+}
+
