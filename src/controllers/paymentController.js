@@ -20,9 +20,9 @@ export const paymentController = {
             });
             const transferContent = `PRE${orderCode}`;
             const binBank =
-                process.env.BIN_BANK_ACCOUNT || '970422';
+                process.env.BIN_BANK_ACCOUNT || '970405';
             const bankAccount =
-                process.env.BANK_ACCOUNT || '0345388317';
+                process.env.BANK_ACCOUNT || '3910205185595';
             const qrUrl =
                 `https://img.vietqr.io/image/` +
                 `${binBank}-${bankAccount}-compact2.jpg` +
