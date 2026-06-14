@@ -305,9 +305,31 @@ export const budgetController = {
             console.error('[Budget] syncExpiredBudgets error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi đồng bộ ngân sách quá hạn', null);
         }
+    },
+    deleteBudget: async (req, res) => {
+        try {
+            const budgetId = req.params.id;
+            const userId = req.user.id;
+            const budget = await prisma.budgets.findFirst({
+                where: {
+                    id: Number(budgetId),
+                    user_id: Number(userId)
+                }
+            });
+            if (!budget) {
+                return jsonResponse(res, 404, 'Không tìm thấy ngân sách', null);
+            }
+            await prisma.budgets.delete({
+                where: {
+                    id: Number(budget.id)
+                }
+            });
+            return jsonResponse(res, 200, 'Xóa ngân sách thành công', null);
+        } catch (error) {
+            console.error('[Budget] deleteBudget error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi xóa ngân sách', null);
+        }
     }
-
-
 }
 
 const calculateCurrentSpent = async (budget) => {
