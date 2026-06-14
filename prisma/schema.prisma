@@ -200,3 +200,10 @@ enum wallets_type_enum {
   BANK_ACCOUNT
   E_WALLET
 }
+
+model system_configs {
+  id    Int    @id @default(autoincrement())
+  key   String @unique @db.VarChar
+  value String @db.Text
+}
+
