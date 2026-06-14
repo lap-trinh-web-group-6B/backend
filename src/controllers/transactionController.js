@@ -328,7 +328,7 @@ export const transactionController = {
                 }
 
                 let currentTransferWalletId = oldTx.transfer_wallet_id;
-                if (req.body.hasOwnProperty('transfer_wallet_id')) {
+                if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'transfer_wallet_id')) {
                     currentTransferWalletId = req.body.transfer_wallet_id ? parseInt(req.body.transfer_wallet_id) : null;
                 }
 
