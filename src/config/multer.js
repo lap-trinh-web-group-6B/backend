@@ -44,3 +44,14 @@ export const upload = multer({
 export const multerAvatarUpload = upload.single('avatar');
 
 export const multerIconUpload = upload.single('icon');
+
+// Cấu hình upload lưu trong RAM (không lưu file ra đĩa) phục vụ OCR quét hóa đơn
+const memoryStorage = multer.memoryStorage();
+export const uploadInMemory = multer({
+    storage: memoryStorage,
+    fileFilter: fileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+});
+
+export const multerMemoryUpload = uploadInMemory.single('image');
+

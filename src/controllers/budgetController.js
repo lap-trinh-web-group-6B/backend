@@ -34,6 +34,19 @@ export const budgetController = {
                 return jsonResponse(res, 400, 'Đã tồn tại ngân sách đang hoạt động cho danh mục này trong khoảng thời gian đã chọn', null);
             }
 
+            // Giới hạn số ngân sách hoạt động cho tài khoản FREE (tối đa 3 ngân sách ACTIVE)
+            if (req.user.type === 'FREE') {
+                const activeBudgetCount = await prisma.budgets.count({
+                    where: {
+                        user_id: userId,
+                        status: 'ACTIVE'
+                    }
+                });
+                if (activeBudgetCount >= 3) {
+                    return jsonResponse(res, 403, 'Tài khoản FREE chỉ được tạo tối đa 3 ngân sách hoạt động cùng lúc. Vui lòng nâng cấp lên PREMIUM để không giới hạn.', null);
+                }
+            }
+
             const newBudget = await prisma.budgets.create({
                 data: {
                     user_id: userId,
@@ -152,6 +165,10 @@ export const budgetController = {
             if (budget.status !== 'ACTIVE') {
                 return jsonResponse(res, 400, 'Chỉ có thể chỉnh sửa ngân sách đang hoạt động', null);
             }
+            const targetCategoryId = category_id || budget.category_id;
+            const targetStartDate = start_date ? new Date(start_date) : budget.start_date;
+            const targetEndDate = end_date ? new Date(end_date) : budget.end_date;
+
             if (category_id) {
                 const category = await prisma.categories.findUnique({
                     where: {
@@ -161,28 +178,22 @@ export const budgetController = {
                 if (!category || category.type !== 'EXPENSE') {
                     return jsonResponse(res, 400, 'Danh mục không hợp lệ hoặc không phải danh mục chi tiêu', null);
                 }
-                budget.category_id = category_id;
             }
-            if (amount_limit !== undefined) budget.amount_limit = amount_limit;
-            if (start_date) budget.start_date = new Date(start_date);
-            if (end_date) budget.end_date = new Date(end_date);
-            if (is_alert_enabled !== undefined) budget.is_alert_enabled = is_alert_enabled;
-            if (alert_threshold !== undefined) budget.alert_threshold = alert_threshold;
             // Note: Kiểm tra trùng lặp nếu có thay đổi ngày hoặc danh mục
             if (category_id || start_date || end_date) {
                 const overlappingBudget = await prisma.budgets.findFirst({
                     where: {
                         user_id: userId,
-                        category_id: budget.category_id,
+                        category_id: targetCategoryId,
                         status: 'ACTIVE',
                         id: {
                             not: Number(budgetId)
                         },
                         start_date: {
-                            lte: budget.end_date
+                            lte: targetEndDate
                         },
                         end_date: {
-                            gte: budget.start_date
+                            gte: targetStartDate
                         }
                     }
                 });
@@ -190,13 +201,21 @@ export const budgetController = {
                     return jsonResponse(res, 400, 'Khoảng thời gian này đã bị trùng lặp với một ngân sách ACTIVE khác của danh mục này', null);
                 }
             }
-            await prisma.budgets.update({
+            const dataToUpdate = {};
+            if (category_id) dataToUpdate.category_id = category_id;
+            if (amount_limit !== undefined) dataToUpdate.amount_limit = amount_limit;
+            if (start_date) dataToUpdate.start_date = new Date(start_date);
+            if (end_date) dataToUpdate.end_date = new Date(end_date);
+            if (is_alert_enabled !== undefined) dataToUpdate.is_alert_enabled = is_alert_enabled;
+            if (alert_threshold !== undefined) dataToUpdate.alert_threshold = alert_threshold;
+
+            const updatedBudget = await prisma.budgets.update({
                 where: {
                     id: Number(budget.id)
                 },
-                data: budget
+                data: dataToUpdate
             });
-            return jsonResponse(res, 200, 'Cập nhật ngân sách thành công', budget);
+            return jsonResponse(res, 200, 'Cập nhật ngân sách thành công', updatedBudget);
         } catch (error) {
             console.error('[Budget] updateBudget error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi cập nhật ngân sách', null);
@@ -225,22 +244,67 @@ export const budgetController = {
             } else if (finalSpent > Number(budget.amount_limit)) {
                 resultStatus = 'OVER_BUDGET';
             }
-            budget.status = 'COMPLETED';
-            budget.final_spent_amount = finalSpent;
-            budget.result_status = resultStatus;
-            budget.completion_date = new Date();
-            await prisma.budgets.update({
+            const updatedBudget = await prisma.budgets.update({
                 where: {
                     id: Number(budget.id)
                 },
-                data: budget
+                data: {
+                    status: 'COMPLETED',
+                    final_spent_amount: finalSpent,
+                    result_status: resultStatus,
+                    completion_date: new Date()
+                }
             });
-            return jsonResponse(res, 200, 'Đã hoàn thành và chốt ngân sách thành công', budget);
+            return jsonResponse(res, 200, 'Đã hoàn thành và chốt ngân sách thành công', updatedBudget);
         } catch (error) {
             console.error('[Budget] completeBudget error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi hoàn thành ngân sách', null);
         }
+    },
+    syncExpiredBudgets: async (req, res) => {
+        try {
+            const now = new Date();
+            const expiredBudgets = await prisma.budgets.findMany({
+                where: {
+                    status: 'ACTIVE',
+                    end_date: {
+                        lt: now
+                    }
+                }
+            });
 
+            const updatedBudgets = [];
+            for (const budget of expiredBudgets) {
+                const finalSpent = await calculateCurrentSpent(budget);
+                let resultStatus = 'EXACT';
+                if (finalSpent < Number(budget.amount_limit)) {
+                    resultStatus = 'UNDER_BUDGET';
+                } else if (finalSpent > Number(budget.amount_limit)) {
+                    resultStatus = 'OVER_BUDGET';
+                }
+
+                const updated = await prisma.budgets.update({
+                    where: {
+                        id: budget.id
+                    },
+                    data: {
+                        status: 'COMPLETED',
+                        final_spent_amount: finalSpent,
+                        result_status: resultStatus,
+                        completion_date: now
+                    }
+                });
+                updatedBudgets.push(updated);
+            }
+
+            return jsonResponse(res, 200, `Đồng bộ thành công. Đã hoàn thành ${updatedBudgets.length} ngân sách quá hạn.`, {
+                processed_count: updatedBudgets.length,
+                budgets: updatedBudgets
+            });
+        } catch (error) {
+            console.error('[Budget] syncExpiredBudgets error:', error);
+            return jsonResponse(res, 500, 'Lỗi server khi đồng bộ ngân sách quá hạn', null);
+        }
     }
 
 
@@ -299,30 +363,65 @@ export const checkBudgetAlerts = async (userId, categoryId) => {
             );
 
             if (currentSpent >= limit) {
-                console.log(
-                    `[Budget] Creating Exceeded Warning for User ${userId}`
-                );
+                // Kiểm tra xem đã gửi cảnh báo vượt hạn mức chưa
+                const existingExceededWarning = await prisma.notifications.findFirst({
+                    where: {
+                        user_id: userId,
+                        type: 'WARNING',
+                        title: 'Cảnh báo vượt ngân sách',
+                        message: {
+                            contains: `đã tiêu vượt quá hạn mức`
+                        },
+                        created_at: {
+                            gte: budget.start_date
+                        }
+                    }
+                });
 
-                await createNotification(
-                    userId,
-                    "Cảnh báo vượt ngân sách",
-                    `Bạn đã tiêu quá hạn mức cho danh mục: ${categoryName}`,
-                    "WARNING"
-                );
+                if (!existingExceededWarning) {
+                    console.log(
+                        `[Budget] Creating Exceeded Warning for User ${userId}`
+                    );
+
+                    await createNotification(
+                        userId,
+                        "Cảnh báo vượt ngân sách",
+                        `Bạn đã tiêu vượt quá hạn mức (${limit.toLocaleString("vi-VN")} đ) cho danh mục: ${categoryName}`,
+                        "WARNING"
+                    );
+                }
 
             } else if (
                 percentage >= Number(budget.alert_threshold || 0.8)
             ) {
-                console.log(
-                    `[Budget] Sending Threshold Alert for User ${userId}`
-                );
+                // Kiểm tra xem đã gửi cảnh báo ngưỡng hoặc vượt hạn mức chưa (tránh spam khi chạm ngưỡng)
+                const existingWarning = await prisma.notifications.findFirst({
+                    where: {
+                        user_id: userId,
+                        type: 'WARNING',
+                        title: 'Cảnh báo vượt ngân sách',
+                        message: {
+                            contains: `danh mục: ${categoryName}`
+                        },
+                        created_at: {
+                            gte: budget.start_date
+                        }
+                    }
+                });
 
-                await createNotification(
-                    userId,
-                    "Cảnh báo vượt ngân sách",
-                    `Bạn đã tiêu quá hạn mức cho danh mục: ${categoryName}`,
-                    "WARNING"
-                );
+                if (!existingWarning) {
+                    console.log(
+                        `[Budget] Sending Threshold Alert for User ${userId}`
+                    );
+
+                    const thresholdPercent = Math.round(Number(budget.alert_threshold || 0.8) * 100);
+                    await createNotification(
+                        userId,
+                        "Cảnh báo vượt ngân sách",
+                        `Bạn đã chi tiêu vượt quá ${thresholdPercent}% hạn mức cho danh mục: ${categoryName}`,
+                        "WARNING"
+                    );
+                }
             }
         }
     } catch (error) {

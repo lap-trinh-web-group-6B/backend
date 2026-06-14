@@ -13,4 +13,5 @@ router.get('/:id', requireAuth, budgetController.getBudgetDetail);
 router.patch('/:id', requireAuth, budgetController.updateBudget);
 
 router.patch('/:id/complete', requireAuth, budgetController.completeBudget);
+router.post('/sync-expired', budgetController.syncExpiredBudgets);
 export default router;

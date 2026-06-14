@@ -117,6 +117,17 @@ export const categoryController = {
             if (existingSystemCategory) {
                 return jsonResponse(res, 400, 'Lỗi', {name: 'Tên danh mục trùng với danh mục hệ thống'});
             }
+
+            const existingUserCategory = await prisma.categories.findFirst({
+                where: {
+                    name_normalized: normalizedName,
+                    user_id: userId
+                }
+            });
+
+            if (existingUserCategory) {
+                return jsonResponse(res, 400, 'Lỗi', {name: 'Bạn đã tạo danh mục với tên này trước đó'});
+            }
             const newCategory = await prisma.categories.create({
                 data: {
                     name,
@@ -139,7 +150,6 @@ export const categoryController = {
             const userId = req.user.id;
             const categoryId = req.params.id;
             const {name, type, status} = req.body;
-            let icon_url = req.body.icon_url;
 
             const category = await prisma.categories.findUnique({
                 where: {
@@ -156,6 +166,8 @@ export const categoryController = {
             if (category.user_id !== userId) {
                 return jsonResponse(res, 403, 'Bạn không có quyền chỉnh sửa danh mục này', null);
             }
+
+            const dataToUpdate = {};
             if (name && normalizeVietnamese(name) !== category.name_normalized) {
                 const normalizedName = normalizeVietnamese(name);
                 const existingSystemCategory = await prisma.categories.findFirst({
@@ -167,26 +179,46 @@ export const categoryController = {
                 if (existingSystemCategory) {
                     return jsonResponse(res, 400, 'Lỗi', {name: 'Tên danh mục trùng với danh mục hệ thống'});
                 }
-                category.name = name;
-                category.name_normalized = normalizedName;
+                const existingUserCategory = await prisma.categories.findFirst({
+                    where: {
+                        name_normalized: normalizedName,
+                        user_id: userId,
+                        id: {
+                            not: Number(categoryId)
+                        }
+                    }
+                });
+                if (existingUserCategory) {
+                    return jsonResponse(res, 400, 'Lỗi', {name: 'Bạn đã tạo danh mục với tên này trước đó'});
+                }
+                dataToUpdate.name = name;
+                dataToUpdate.name_normalized = normalizedName;
             }
-            if (type && ['INCOME', 'EXPENSE'].includes(type)) category.type = type;
+            if (type && ['INCOME', 'EXPENSE'].includes(type)) {
+                dataToUpdate.type = type;
+            }
             if (req.file) {
                 if (category.icon_url && category.icon_url.startsWith('/uploads/')) {
                     deleteFile(category.icon_url);
                 }
-                category.icon_url = `/uploads/icons/${req.file.filename}`;
-            } else {
-                category.icon_url = null;
+                dataToUpdate.icon_url = `/uploads/icons/${req.file.filename}`;
+            } else if (req.body.delete_icon === 'true' || req.body.delete_icon === true) {
+                if (category.icon_url && category.icon_url.startsWith('/uploads/')) {
+                    deleteFile(category.icon_url);
+                }
+                dataToUpdate.icon_url = null;
             }
-            if (status && ['ACTIVATE', 'DISABLED'].includes(status)) category.status = status;
-            await prisma.categories.update({
+            if (status && ['ACTIVATE', 'DISABLED'].includes(status)) {
+                dataToUpdate.status = status;
+            }
+
+            const updatedCategory = await prisma.categories.update({
                 where: {
                     id: category.id
                 },
-                data: category
+                data: dataToUpdate
             });
-            return jsonResponse(res, 200, 'Thành công', category);
+            return jsonResponse(res, 200, 'Thành công', updatedCategory);
         } catch (error) {
             console.error('[Category] updateCategory error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi cập nhật danh mục', null);

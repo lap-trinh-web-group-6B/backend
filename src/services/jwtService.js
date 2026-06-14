@@ -20,7 +20,7 @@ export const generateAccessToken = (user) => {
 };
 
 export const generateForgotPasswordToken = (userId) => {
-    return jwt.sign({ id: userId }, SECRET_KEY, { expiresIn: '15m' });
+    return jwt.sign({ id: userId, type: 'forgot_password' }, SECRET_KEY, { expiresIn: '15m' });
 };
 
 export const verifyToken = (token) => {

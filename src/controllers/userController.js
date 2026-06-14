@@ -35,14 +35,15 @@ export const userController= {
             if (!user) {
                 return jsonResponse(res, 404, 'Không tìm thấy người dùng', null);
             }
-            user.fullName = fullName.trim();
-            await prisma.users.update({
+            const updated = await prisma.users.update({
                 where: {
-                    id: user.id
+                    id: req.user.id
                 },
-                data: user
+                data: {
+                    fullName: fullName.trim()
+                }
             });
-            const {password, syncId, createdAt, ...updatedUser} = user;
+            const {password, syncId, createdAt, ...updatedUser} = updated;
             return jsonResponse(res, 200, 'Thành công', updatedUser);
         } catch (error) {
             return jsonResponse(res, 500, 'Lỗi hệ thống', null);
@@ -63,12 +64,13 @@ export const userController= {
             if (!user) {
                 return jsonResponse(res, 404, 'Không tìm thấy người dùng', null);
             }
-            user.status = status;
             await prisma.users.update({
                 where: {
                     id: user.id
                 },
-                data: user
+                data: {
+                    status: status
+                }
             });
             return jsonResponse(res, 200, 'Thành công');
         } catch (error) {
@@ -99,12 +101,14 @@ export const userController= {
             if (newPassword !== confirmPassword) {
                 return jsonResponse(res, 400, 'Lỗi', {confirmPassword: 'Mật khẩu xác nhận không khớp'});
             }
-            user.password = await argon2.hash(newPassword);
+            const newHashedPassword = await argon2.hash(newPassword);
             await prisma.users.update({
                 where: {
                     id: user.id
                 },
-                data: user
+                data: {
+                    password: newHashedPassword
+                }
             });
             return jsonResponse(res, 200, 'Thành công');
         } catch (error) {
@@ -129,22 +133,16 @@ export const userController= {
                 deleteFile(user.avatar);
             }
             // Lưu đường dẫn file mới vào db
-            // Yêu cầu chuyển đường dẫn vật lý thành URL tương đối tĩnh (VD: /uploads/avatars/filename.webp)
             const fileUrl = `/uploads/avatars/${req.file.filename}`;
-            user.avatar = fileUrl;
-            await prisma.users.update({
+            const updated = await prisma.users.update({
                 where: {
                     id: user.id
                 },
                 data: {
-                    email: user.email,
-                    fullName: user.fullName,
-                    avatar: user.avatar,
-                    fcmToken: user.fcmToken,
-                    refreshToken: user.refreshToken
+                    avatar: fileUrl
                 }
             });
-            const {password, syncId, createdAt, ...updatedUser} = user;
+            const {password, syncId, createdAt, ...updatedUser} = updated;
             return jsonResponse(res, 200, 'Thành công', updatedUser);
         } catch (error) {
             console.error('[UserController] updateAvatar error:', error);

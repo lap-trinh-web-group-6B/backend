@@ -153,14 +153,22 @@ export const statisticsController = {
             let conditions = [`tx.user_id = ${userId}`];
 
             if (from_date) {
+                const parsedFrom = new Date(from_date);
+                if (isNaN(parsedFrom.getTime())) {
+                    return jsonResponse(res, 400, 'from_date không hợp lệ', null);
+                }
                 conditions.push(
-                    `tx.transaction_date >= '${new Date(from_date).toISOString()}'`
+                    `tx.transaction_date >= '${parsedFrom.toISOString()}'`
                 );
             }
 
             if (to_date) {
+                const parsedTo = new Date(to_date);
+                if (isNaN(parsedTo.getTime())) {
+                    return jsonResponse(res, 400, 'to_date không hợp lệ', null);
+                }
                 conditions.push(
-                    `tx.transaction_date <= '${new Date(to_date).toISOString()}'`
+                    `tx.transaction_date <= '${parsedTo.toISOString()}'`
                 );
             }
 

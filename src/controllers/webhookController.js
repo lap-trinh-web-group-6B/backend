@@ -3,9 +3,27 @@ import {prisma} from "../config/database.js";
 
 export const webhookController = {
     handleSepayWebhook: async (req, res) => {
-        res.status(200).json({ success: true });
-        console.log('Webhook Running.....');
         try {
+            const authHeader = req.headers.authorization;
+            let apiKey = '';
+            if (authHeader && authHeader.startsWith('Apikey ')) {
+                apiKey = authHeader.split(' ')[1];
+            } else if (authHeader) {
+                apiKey = authHeader;
+            } else if (req.headers['x-api-key']) {
+                apiKey = req.headers['x-api-key'];
+            } else if (req.query.apikey) {
+                apiKey = req.query.apikey;
+            }
+
+            const expectedKey = process.env.SEPAY_WEBHOOK_KEY || 'sepay_webhook_secure_key_2026';
+            if (apiKey !== expectedKey) {
+                console.log('[Webhook] Từ chối: Sai khóa webhook bảo mật hoặc không được cung cấp');
+                return res.status(401).json({ success: false, message: 'Unauthorized webhook request' });
+            }
+
+            res.status(200).json({ success: true });
+            console.log('Webhook Running.....');
             const payload = req.body;
             console.log('Payload:', payload);
             if (payload.transferType !== 'in') {

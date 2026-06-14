@@ -94,6 +94,19 @@ export const walletController = {
             if (balance !== undefined && Number(balance) < 0) {
                 return jsonResponse(res, 400, 'Lỗi', { message: 'Số dư (balance) không được âm' });
             }
+
+            // Giới hạn số lượng ví cho tài khoản FREE (tối đa 2 ví)
+            if (req.user.type === 'FREE') {
+                const walletCount = await prisma.wallets.count({
+                    where: {
+                        user_id: userId
+                    }
+                });
+                if (walletCount >= 2) {
+                    return jsonResponse(res, 403, 'Tài khoản FREE chỉ được tạo tối đa 2 ví. Vui lòng nâng cấp lên PREMIUM để không giới hạn ví.', null);
+                }
+            }
+
             const existingWallet = await prisma.wallets.findFirst({
                 where: {
                     user_id: userId,
@@ -171,6 +184,7 @@ export const walletController = {
             if (wallet.user_id !== userId) {
                 return jsonResponse(res, 403, 'Không có quyền chỉnh sửa ví này', null);
             }
+            const dataToUpdate = {};
             // Check trùng tên nếu người dùng thay đổi name khác origin
             if (name && name.trim().toLowerCase() !== wallet.name.toLowerCase()) {
                 const existingWallet = await prisma.wallets.findFirst({
@@ -186,27 +200,27 @@ export const walletController = {
                 if (existingWallet) {
                     return jsonResponse(res, 400, 'Lỗi', { name: 'Tên ví đã tồn tại' });
                 }
-                wallet.name = name.trim();
+                dataToUpdate.name = name.trim();
             }
             if (type && ['CASH', 'BANK_ACCOUNT', 'E_WALLET'].includes(type.toUpperCase())) {
-                wallet.type = type.toUpperCase();
+                dataToUpdate.type = type.toUpperCase();
             }
             if (balance !== undefined && !isNaN(Number(balance)) && Number(balance) >= 0) {
-                wallet.balance = Number(balance);
+                dataToUpdate.balance = Number(balance);
             }
             if (status && ['ACTIVATE', 'DISABLED'].includes(status.toUpperCase())) {
-                wallet.status = status.toUpperCase();
+                dataToUpdate.status = status.toUpperCase();
             }
             if (currency) {
-                wallet.currency = currency;
+                dataToUpdate.currency = currency;
             }
-            await prisma.wallets.update({
+            const updatedWallet = await prisma.wallets.update({
                 where: {
                     id: wallet.id,
                 },
-                data: wallet,
-            });;
-            return jsonResponse(res, 200, 'Thành công', wallet);
+                data: dataToUpdate,
+            });
+            return jsonResponse(res, 200, 'Thành công', updatedWallet);
         } catch (error) {
             if (error.code === '23505') {
                 return jsonResponse(res, 400, 'Lỗi', { name: 'Tên ví đã tồn tại' });

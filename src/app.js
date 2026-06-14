@@ -11,14 +11,6 @@ router.use('/auth', authRoutes);
 
 dotenv.config();
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use('/api/v1', apiRoutes);
-
-app.use('/api/payment', paymentRoutes);
-app.use('/api/webhook', webhookRoutes);
-
-
 
 const corsOptions = {
     origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : '*',
@@ -28,8 +20,14 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use('/api/v1', apiRoutes);
 
-const PORT = process.env.PORT || 3000;
+app.use('/api/payment', paymentRoutes);
+app.use('/api/webhook', webhookRoutes);
+
+const PORT = process.env.PORT || 3001;
 
 
 app.listen(PORT, () => {
