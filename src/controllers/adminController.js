@@ -181,8 +181,8 @@ export const getSettingsPage = async (req, res) => {
             [systemConfigKeys.PREMIUM_PRICE]: '2000',
             [systemConfigKeys.BANK_BIN]: process.env.BIN_BANK_ACCOUNT || '970405',
             [systemConfigKeys.BANK_ACCOUNT]: process.env.BANK_ACCOUNT || '3910205185595',
-            [systemConfigKeys.BANK_NAME]: 'VietinBank',
-            [systemConfigKeys.BANK_OWNER_NAME]: 'NGUYEN VAN A'
+            [systemConfigKeys.BANK_NAME]: 'Agribank',
+            [systemConfigKeys.BANK_OWNER_NAME]: 'LE NGOC UYEN'
         });
 
         res.render('admin/settings', {

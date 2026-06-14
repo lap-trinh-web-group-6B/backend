@@ -108,20 +108,20 @@ export const authController = {
                 },
             });
             if (!user) {
-                return jsonResponse(res, 400, 'Lỗi xác thực', {email: 'Email chưa đăng ký'});
+                return jsonResponse(res, 400, 'Email hoặc mật khẩu không chính xác', null);
             }
             switch (user.status) {
                 case 'BANNED':
                     return jsonResponse(res, 403, 'Bị chặn', {email: 'Tài khoản đã bị cấm'});
                 case 'CANCEL':
-                    return jsonResponse(res, 400, 'Lỗi xác thực', {email: 'Email chưa đăng ký'});
+                    return jsonResponse(res, 400, 'Email hoặc mật khẩu không chính xác', null);
                 case 'DISABLE':
                     // Theo nghiệp vụ, DISABLE vẫn có thể đăng nhập hoặc bạn có thể cấm
                     break;
             }
             const isPasswordValid = await argon2.verify(user.password, password);
             if (!isPasswordValid) {
-                return jsonResponse(res, 400, 'Sai thông tin', {password: 'Mật khẩu không đúng'});
+                return jsonResponse(res, 400, 'Email hoặc mật khẩu không chính xác', null);
             }
             const accessToken = generateAccessToken(user);
             const refreshToken = generateRefreshToken(user);
