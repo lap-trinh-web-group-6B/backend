@@ -11,17 +11,17 @@ export const authController = {
         try {
             const {fullName, email, password} = req.body;
             if (!fullName || !email || !password) {
-                return jsonResponse(res, 400, 'Lỗi tham số', {error: 'fullName, email và password là bắt buộc'});
+                return jsonResponse(res, 400, 'fullName, email và password là bắt buộc', null);
             }
             if (!isValidEmail(email)) {
-                return jsonResponse(res, 400, 'Lỗi định dạng', {email: 'Định dạng email không hợp lệ'});
+                return jsonResponse(res, 400, 'Định dạng email không hợp lệ', null);
             }
             const existingUser = await prisma.users.findFirst({
                 where: { email }
             });
             if (existingUser) {
                 if (['ACTIVATE', 'DISABLE', 'BANNED'].includes(existingUser.status)) {
-                    return jsonResponse(res, 400, 'Không hợp lệ', {email: 'Email đã được sử dụng'});
+                    return jsonResponse(res, 400, 'Email đã được sử dụng', null);
                 }
             }
             await otpService.sendOtp(email);
@@ -34,14 +34,14 @@ export const authController = {
         try {
             const {fullName, email, password, otp} = req.body;
             if (!email || !otp || !password) {
-                return jsonResponse(res, 400, 'Lỗi tham số', {otp: 'Thiếu thông tin xác thực'});
+                return jsonResponse(res, 400, 'Thiếu thông tin xác thực', null);
             }
             if (!isValidEmail(email)) {
-                return jsonResponse(res, 400, 'Lỗi định dạng', {email: 'Định dạng email không hợp lệ'});
+                return jsonResponse(res, 400, 'Định dạng email không hợp lệ', null);
             }
             const isValid = await otpService.verifyOtp(email, otp);
             if (!isValid) {
-                return jsonResponse(res, 400, 'Lỗi OTP', {otp: 'OTP không hợp lệ hoặc đã hết hạn'});
+                return jsonResponse(res, 400, 'OTP không hợp lệ hoặc đã hết hạn', null);
             }
             const hashedPassword = await argon2.hash(password);
             let newUser = await prisma.users.findUnique({
@@ -87,8 +87,8 @@ export const authController = {
     registerResendOtp: async (req, res) => {
         try {
             const {email} = req.body;
-            if (!email) return jsonResponse(res, 400, 'Thiếu dữ liệu', {email: 'Email là bắt buộc'});
-            if (!isValidEmail(email)) return jsonResponse(res, 400, 'Lỗi định dạng', {email: 'Định dạng email không hợp lệ'});
+            if (!email) return jsonResponse(res, 400, 'Email là bắt buộc', null);
+            if (!isValidEmail(email)) return jsonResponse(res, 400, 'Định dạng email không hợp lệ', null);
 
             await otpService.sendOtp(email);
             return jsonResponse(res, 200, 'Đã gửi lại OTP', null);
@@ -100,7 +100,7 @@ export const authController = {
         try {
             const {email, password} = req.body;
             if (!isValidEmail(email)) {
-                return jsonResponse(res, 400, 'Lỗi định dạng', {email: 'Định dạng email không hợp lệ'});
+                return jsonResponse(res, 400, 'Định dạng email không hợp lệ', null);
             }
             const user = await prisma.users.findUnique({
                 where: {
@@ -142,7 +142,7 @@ export const authController = {
         try {
             const {email} = req.body;
             if (!isValidEmail(email)) {
-                return jsonResponse(res, 400, 'Lỗi định dạng', {email: 'Định dạng email không hợp lệ'});
+                return jsonResponse(res, 400, 'Định dạng email không hợp lệ', null);
             }
             const user = await prisma.users.findUnique({
                 where: {
@@ -150,7 +150,7 @@ export const authController = {
                 },
             });
             if (!user || user.status === 'CANCEL') {
-                return jsonResponse(res, 400, 'Không hợp lệ', {email: 'Email chưa đăng ký'});
+                return jsonResponse(res, 400, 'Email chưa đăng ký', null);
             }
             if (user.status === 'BANNED') {
                 return jsonResponse(res, 403, 'Bị chặn', {email: 'Tài khoản đã bị cấm'});
@@ -166,11 +166,11 @@ export const authController = {
         try {
             const {email, otp} = req.body;
             if (!isValidEmail(email)) {
-                return jsonResponse(res, 400, 'Lỗi định dạng', {email: 'Định dạng email không hợp lệ'});
+                return jsonResponse(res, 400, 'Định dạng email không hợp lệ', null);
             }
             const isValid = await otpService.verifyOtp(email, otp);
             if (!isValid) {
-                return jsonResponse(res, 400, 'Lỗi OTP', {otp: 'OTP không hợp lệ hoặc đã hết hạn'});
+                return jsonResponse(res, 400, 'OTP không hợp lệ hoặc đã hết hạn', null);
             }
             const user = await prisma.users.findUnique({
                 where: {
@@ -187,7 +187,7 @@ export const authController = {
         try {
             const {forgotPasswordToken, password, confirmPassword} = req.body;
             if (password !== confirmPassword) {
-                return jsonResponse(res, 400, 'Dữ liệu sai', {password: 'Mật khẩu và Xác nhận mật khẩu không khớp'});
+                return jsonResponse(res, 400, 'Mật khẩu và Xác nhận mật khẩu không khớp', null);
             }
             const decodedData = verifyToken(forgotPasswordToken);
             if (decodedData.type !== 'forgot_password') {
