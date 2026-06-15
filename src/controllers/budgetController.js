@@ -477,6 +477,7 @@ export const checkBudgetAlerts = async (userId, categoryId) => {
                     where: {
                         user_id: userId,
                         type: 'WARNING',
+                        status: 'ACTIVE',
                         title: 'Cảnh báo vượt ngân sách',
                         message: {
                             contains: `đã tiêu vượt quá hạn mức`
@@ -508,6 +509,7 @@ export const checkBudgetAlerts = async (userId, categoryId) => {
                     where: {
                         user_id: userId,
                         type: 'WARNING',
+                        status: 'ACTIVE',
                         title: 'Cảnh báo vượt ngân sách',
                         message: {
                             contains: `danh mục: ${categoryName}`

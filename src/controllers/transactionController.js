@@ -268,7 +268,7 @@ export const transactionController = {
 
             // Note: Kiểm tra cảnh báo ngân sách
             if (result.category && result.category.type === 'EXPENSE') {
-                checkBudgetAlerts(userId, result.newTx.category_id);
+                await checkBudgetAlerts(userId, result.newTx.category_id);
             }
 
             return jsonResponse(res, 201, 'Tạo giao dịch thành công', {
@@ -510,7 +510,7 @@ export const transactionController = {
 
             // Note: Kiểm tra cảnh báo ngân sách sau khi cập nhật giao dịch
             if (result.updatedTx.categories && result.updatedTx.categories.type === 'EXPENSE') {
-                checkBudgetAlerts(userId, result.updatedTx.category_id);
+                await checkBudgetAlerts(userId, result.updatedTx.category_id);
             }
 
             return jsonResponse(
