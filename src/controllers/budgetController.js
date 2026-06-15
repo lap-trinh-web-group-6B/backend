@@ -9,6 +9,16 @@ export const budgetController = {
             const { category_id, amount_limit, start_date, end_date, is_alert_enabled, alert_threshold } = req.body;
             const userId = req.user.id;
             
+            // Validation hạn mức chi tiêu
+            if (amount_limit === undefined || isNaN(Number(amount_limit)) || Number(amount_limit) <= 0) {
+                return jsonResponse(res, 400, 'Hạn mức ngân sách phải là số dương lớn hơn 0', null);
+            }
+
+            // Validation ngưỡng cảnh báo
+            if (alert_threshold !== undefined && (isNaN(Number(alert_threshold)) || Number(alert_threshold) < 0.1 || Number(alert_threshold) > 1.0)) {
+                return jsonResponse(res, 400, 'Ngưỡng cảnh báo phải nằm trong khoảng từ 0.1 (10%) đến 1.0 (100%)', null);
+            }
+
             // Tự động đồng bộ ngân sách quá hạn của user
             await autoSyncExpiredBudgets(userId);
 
@@ -21,16 +31,20 @@ export const budgetController = {
                 return jsonResponse(res, 400, 'Danh mục không hợp lệ hoặc không phải danh mục chi tiêu', null);
             }
 
-            // Chuẩn hóa thời gian bắt đầu và kết thúc
+            // Chuẩn hóa thời gian bắt đầu và kết thúc theo UTC (chỉ gán mặc định nếu truyền date-only)
             const sDate = new Date(start_date);
-            sDate.setHours(0, 0, 0, 0);
+            if (typeof start_date === 'string' && start_date.length <= 10) {
+                sDate.setUTCHours(0, 0, 0, 0);
+            }
 
             const eDate = new Date(end_date);
-            eDate.setHours(23, 59, 59, 999);
+            if (typeof end_date === 'string' && end_date.length <= 10) {
+                eDate.setUTCHours(23, 59, 59, 999);
+            }
 
-            // Kiểm tra ngày kết thúc không được trước ngày hiện tại (ở múi giờ server)
+            // Kiểm tra ngày kết thúc không được trước ngày hiện tại (theo UTC)
             const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            today.setUTCHours(0, 0, 0, 0);
             if (eDate < today) {
                 return jsonResponse(res, 400, 'Ngày kết thúc không thể trước ngày hiện tại', null);
             }
@@ -40,18 +54,23 @@ export const budgetController = {
                 return jsonResponse(res, 400, 'Ngày bắt đầu không thể sau ngày kết thúc', null);
             }
 
+            // Kiểm tra trùng lặp khoảng thời gian chồng chéo (Overlapping)
             const duplicateBudget = await prisma.budgets.findFirst({
                 where: {
                     user_id: userId,
                     category_id: category_id,
                     status: 'ACTIVE',
-                    start_date: sDate,
-                    end_date: eDate
+                    start_date: {
+                        lte: eDate
+                    },
+                    end_date: {
+                        gte: sDate
+                    }
                 }
             });
 
             if (duplicateBudget) {
-                return jsonResponse(res, 400, 'Đã tồn tại ngân sách đang hoạt động với cùng khoảng thời gian này cho danh mục', null);
+                return jsonResponse(res, 400, 'Đã tồn tại ngân sách đang hoạt động bị trùng lặp hoặc chồng chéo khoảng thời gian với danh mục này', null);
             }
 
             // Giới hạn số ngân sách hoạt động cho tài khoản FREE (tối đa 3 ngân sách ACTIVE)
@@ -97,18 +116,18 @@ export const budgetController = {
             const whereClause = {
                 user_id: userId
             };
-            if (from_date) {
-                const start = new Date(from_date);
-                start.setHours(0, 0, 0, 0);
+            if (from_date || to_date) {
+                const start = from_date ? new Date(from_date) : new Date("1970-01-01");
+                if (from_date) start.setUTCHours(0, 0, 0, 0);
+                
+                const end = to_date ? new Date(to_date) : new Date("9999-12-31");
+                if (to_date) end.setUTCHours(23, 59, 59, 999);
+                
                 whereClause.start_date = {
-                    gte: start
-                };
-            }
-            if (to_date) {
-                const end = new Date(to_date);
-                end.setHours(23, 59, 59, 999);
-                whereClause.end_date = {
                     lte: end
+                };
+                whereClause.end_date = {
+                    gte: start
                 };
             }
             const budgets = await prisma.budgets.findMany({
@@ -184,6 +203,17 @@ export const budgetController = {
             await autoSyncExpiredBudgets(userId);
 
             const { category_id, amount_limit, start_date, end_date, is_alert_enabled, alert_threshold } = req.body;
+            
+            // Validation hạn mức chi tiêu
+            if (amount_limit !== undefined && (isNaN(Number(amount_limit)) || Number(amount_limit) <= 0)) {
+                return jsonResponse(res, 400, 'Hạn mức ngân sách phải là số dương lớn hơn 0', null);
+            }
+
+            // Validation ngưỡng cảnh báo
+            if (alert_threshold !== undefined && (isNaN(Number(alert_threshold)) || Number(alert_threshold) < 0.1 || Number(alert_threshold) > 1.0)) {
+                return jsonResponse(res, 400, 'Ngưỡng cảnh báo phải nằm trong khoảng từ 0.1 (10%) đến 1.0 (100%)', null);
+            }
+
             const budget = await prisma.budgets.findUnique({
                 where: {
                     id: Number(budgetId)
@@ -198,16 +228,20 @@ export const budgetController = {
             
             const targetCategoryId = category_id || budget.category_id;
             
-            // Chuẩn hóa ngày bắt đầu và kết thúc mới (hoặc giữ nguyên ngày cũ)
+            // Chuẩn hóa ngày bắt đầu và kết thúc mới theo UTC (chỉ gán mặc định nếu truyền date-only)
             const targetStartDate = start_date ? new Date(start_date) : new Date(budget.start_date);
-            if (start_date) targetStartDate.setHours(0, 0, 0, 0);
+            if (start_date && typeof start_date === 'string' && start_date.length <= 10) {
+                targetStartDate.setUTCHours(0, 0, 0, 0);
+            }
 
             const targetEndDate = end_date ? new Date(end_date) : new Date(budget.end_date);
-            if (end_date) targetEndDate.setHours(23, 59, 59, 999);
+            if (end_date && typeof end_date === 'string' && end_date.length <= 10) {
+                targetEndDate.setUTCHours(23, 59, 59, 999);
+            }
 
-            // Kiểm tra ngày kết thúc không được trước ngày hiện tại (ở múi giờ server)
+            // Kiểm tra ngày kết thúc không được trước ngày hiện tại (theo UTC)
             const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            today.setUTCHours(0, 0, 0, 0);
             if (targetEndDate < today) {
                 return jsonResponse(res, 400, 'Ngày kết thúc không thể trước ngày hiện tại', null);
             }
@@ -228,7 +262,7 @@ export const budgetController = {
                 }
             }
             
-            // Kiểm tra trùng lặp khoảng thời gian chính xác
+            // Kiểm tra trùng lặp khoảng thời gian chồng chéo (Overlapping)
             if (category_id || start_date || end_date) {
                 const duplicateBudget = await prisma.budgets.findFirst({
                     where: {
@@ -238,12 +272,16 @@ export const budgetController = {
                         id: {
                             not: Number(budgetId)
                         },
-                        start_date: targetStartDate,
-                        end_date: targetEndDate
+                        start_date: {
+                            lte: targetEndDate
+                        },
+                        end_date: {
+                            gte: targetStartDate
+                        }
                     }
                 });
                 if (duplicateBudget) {
-                    return jsonResponse(res, 400, 'Đã tồn tại ngân sách đang hoạt động với cùng khoảng thời gian này cho danh mục', null);
+                    return jsonResponse(res, 400, 'Đã tồn tại ngân sách đang hoạt động bị trùng lặp hoặc chồng chéo khoảng thời gian với danh mục này', null);
                 }
             }
             const dataToUpdate = {};
@@ -308,9 +346,11 @@ export const budgetController = {
     },
     syncExpiredBudgets: async (req, res) => {
         try {
+            const userId = req.user.id;
             const now = new Date();
             const expiredBudgets = await prisma.budgets.findMany({
                 where: {
+                    user_id: userId,
                     status: 'ACTIVE',
                     end_date: {
                         lt: now
@@ -377,8 +417,8 @@ export const budgetController = {
     }
 }
 
-const calculateCurrentSpent = async (budget) => {
-    if (budget.status === 'COMPLETED') {
+const calculateCurrentSpent = async (budget, forceRecalculate = false) => {
+    if (budget.status === 'COMPLETED' && !forceRecalculate) {
         return Number(budget.final_spent_amount);
     }
     const result = await prisma.transactions.aggregate({
@@ -540,5 +580,48 @@ export const checkBudgetAlerts = async (userId, categoryId) => {
             '[Budget] checkBudgetAlerts error:',
             error.message
         );
+    }
+};
+
+export const syncBudgetsAfterTransactionChange = async (userId, categoryId, transactionDate) => {
+    try {
+        const txDate = new Date(transactionDate);
+        if (isNaN(txDate.getTime())) return;
+
+        // Tìm tất cả ngân sách (ACTIVE hoặc COMPLETED) bao phủ category và ngày này
+        const budgets = await prisma.budgets.findMany({
+            where: {
+                user_id: userId,
+                category_id: categoryId,
+                start_date: { lte: txDate },
+                end_date: { gte: txDate }
+            }
+        });
+
+        for (const budget of budgets) {
+            // Tính toán lại tổng chi tiêu hiện tại (bắt buộc tính lại kể cả khi COMPLETED)
+            const spent = await calculateCurrentSpent(budget, true);
+
+            const dataToUpdate = {};
+            if (budget.status === 'COMPLETED') {
+                dataToUpdate.final_spent_amount = spent;
+                
+                // Tính toán lại result_status
+                let resultStatus = 'EXACT';
+                if (spent < Number(budget.amount_limit)) {
+                    resultStatus = 'UNDER_BUDGET';
+                } else if (spent > Number(budget.amount_limit)) {
+                    resultStatus = 'OVER_BUDGET';
+                }
+                dataToUpdate.result_status = resultStatus;
+            }
+
+            await prisma.budgets.update({
+                where: { id: budget.id },
+                data: dataToUpdate
+            });
+        }
+    } catch (error) {
+        console.error('[Budget] syncBudgetsAfterTransactionChange error:', error);
     }
 };
