@@ -2,6 +2,7 @@ import {prisma} from '../config/database.js';
 import {jsonResponse} from '../utils/responseHelper.js';
 import {normalizeVietnamese} from '../utils/stringUtils.js';
 import {deleteFile} from '../utils/fileUtils.js';
+import {syncBudgetsAfterTransactionChange} from './budgetController.js';
 
 
 export const categoryController = {
@@ -48,6 +49,14 @@ export const categoryController = {
             const [items, total] = await Promise.all([
                 prisma.categories.findMany({
                     where,
+                    include: {
+                        _count: {
+                            select: {
+                                transactions: true,
+                                budgets: true
+                            }
+                        }
+                    },
                     orderBy,
                     skip,
                     take
@@ -194,7 +203,27 @@ export const categoryController = {
                 dataToUpdate.name = name;
                 dataToUpdate.name_normalized = normalizedName;
             }
-            if (type && ['INCOME', 'EXPENSE'].includes(type)) {
+            if (type && type !== category.type && ['INCOME', 'EXPENSE'].includes(type)) {
+                // Check if any transactions exist using this category
+                const transactionCount = await prisma.transactions.count({
+                    where: {
+                        category_id: category.id
+                    }
+                });
+                if (transactionCount > 0) {
+                    return jsonResponse(res, 400, 'Không thể thay đổi loại danh mục (Thu/Chi) vì danh mục này đã có giao dịch phát sinh', null);
+                }
+
+                // Check if any budgets exist using this category
+                const budgetCount = await prisma.budgets.count({
+                    where: {
+                        category_id: category.id
+                    }
+                });
+                if (budgetCount > 0) {
+                    return jsonResponse(res, 400, 'Không thể thay đổi loại danh mục vì đã có ngân sách liên kết', null);
+                }
+
                 dataToUpdate.type = type;
             }
             if (req.file) {
@@ -229,6 +258,8 @@ export const categoryController = {
             const userId = req.user.id;
             const categoryId = Number(req.params.id);
             const { mode = 'delete_all', targetCategoryId } = req.query;
+            let uniqueDates = [];
+            const targetId = targetCategoryId ? Number(targetCategoryId) : null;
 
             await prisma.$transaction(async (tx) => {
                 const category = await tx.categories.findUnique({
@@ -256,13 +287,12 @@ export const categoryController = {
                 }
 
                 if (mode === 'merge') {
-                    if (!targetCategoryId) {
+                    if (!targetId) {
                         throw {
                             status: 400,
                             message: 'Thiếu danh mục đích để gộp giao dịch'
                         };
                     }
-                    const targetId = Number(targetCategoryId);
                     if (targetId === categoryId) {
                         throw {
                             status: 400,
@@ -286,6 +316,18 @@ export const categoryController = {
                             message: 'Danh mục đích phải cùng loại thu/chi với danh mục bị xóa'
                         };
                     }
+
+                    // Lấy các ngày giao dịch bị ảnh hưởng để đồng bộ ngân sách sau đó
+                    const transactionsToMerge = await tx.transactions.findMany({
+                        where: {
+                            category_id: categoryId,
+                            user_id: userId
+                        },
+                        select: {
+                            transaction_date: true
+                        }
+                    });
+                    uniqueDates = [...new Set(transactionsToMerge.map(t => t.transaction_date.toISOString()))];
 
                     // Gộp giao dịch sang danh mục mới
                     await tx.transactions.updateMany({
@@ -341,6 +383,12 @@ export const categoryController = {
                     }
                 });
             });
+
+            if (mode === 'merge' && uniqueDates.length > 0 && targetId) {
+                for (const date of uniqueDates) {
+                    await syncBudgetsAfterTransactionChange(userId, targetId, date);
+                }
+            }
 
             return jsonResponse(
                 res,

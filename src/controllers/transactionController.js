@@ -1,7 +1,7 @@
 import {prisma} from '../config/database.js';
 import {jsonResponse} from '../utils/responseHelper.js';
 import {triggerNegativeBalanceWarning} from "../services/notificationService.js";
-import {checkBudgetAlerts} from "./budgetController.js";
+import {checkBudgetAlerts, syncBudgetsAfterTransactionChange} from "./budgetController.js";
 import {normalizeVietnamese} from '../utils/stringUtils.js';
 
 export const transactionController = {
@@ -130,6 +130,16 @@ export const transactionController = {
             if (isNaN(amt) || amt <= 0) {
                 return jsonResponse(res, 400, 'amount phải là số tự nhiên lớn hơn 0', null);
             }
+            if (currency && currency !== 'VND') {
+                return jsonResponse(res, 400, 'Hệ thống hiện tại chỉ hỗ trợ đơn vị tiền tệ VND', null);
+            }
+            if (transaction_date) {
+                const txDate = new Date(transaction_date);
+                const now = new Date();
+                if (txDate.getTime() > now.getTime() + 5 * 60 * 1000) {
+                    return jsonResponse(res, 400, 'Ngày giao dịch không thể ở tương lai', null);
+                }
+            }
             const result = await prisma.$transaction(async (tx) => {
                 const wallet = await tx.wallets.findFirst({
                     where: {
@@ -213,6 +223,12 @@ export const transactionController = {
                             message: { category_id: 'Danh mục không hợp lệ' }
                         };
                     }
+                    if (category.user_id === null && category.name_normalized === normalizeVietnamese("Chuyển tiền")) {
+                        throw {
+                            status: 400,
+                            message: 'Danh mục "Chuyển tiền" chỉ dành cho giao dịch chuyển khoản'
+                        };
+                    }
                 }
 
                 const newTx = await tx.transactions.create({
@@ -269,6 +285,7 @@ export const transactionController = {
             // Note: Kiểm tra cảnh báo ngân sách
             if (result.category && result.category.type === 'EXPENSE') {
                 await checkBudgetAlerts(userId, result.newTx.category_id);
+                await syncBudgetsAfterTransactionChange(userId, result.newTx.category_id, result.newTx.transaction_date);
             }
 
             return jsonResponse(res, 201, 'Tạo giao dịch thành công', {
@@ -297,6 +314,22 @@ export const transactionController = {
                 status,
                 transfer_wallet_id
             } = req.body;
+            if (amount !== undefined) {
+                const amt = parseFloat(amount);
+                if (isNaN(amt) || amt <= 0) {
+                    return jsonResponse(res, 400, 'Số tiền (amount) phải là số dương lớn hơn 0', null);
+                }
+            }
+            if (currency && currency !== 'VND') {
+                return jsonResponse(res, 400, 'Hệ thống hiện tại chỉ hỗ trợ đơn vị tiền tệ VND', null);
+            }
+            if (transaction_date) {
+                const txDate = new Date(transaction_date);
+                const now = new Date();
+                if (txDate.getTime() > now.getTime() + 5 * 60 * 1000) {
+                    return jsonResponse(res, 400, 'Ngày giao dịch không thể ở tương lai', null);
+                }
+            }
             const result = await prisma.$transaction(async (tx) => {
                 const oldTx = await tx.transactions.findUnique({
                     where: { id: txId },
@@ -390,6 +423,15 @@ export const transactionController = {
                 let currentCategory = oldTx.categories;
                 let currentCategoryId = oldTx.category_id;
 
+                if (oldTx.transfer_wallet_id !== null && currentTransferWalletId === null) {
+                    if (!category_id) {
+                        throw {
+                            status: 400,
+                            message: 'Danh mục (category_id) là bắt buộc khi chuyển đổi từ giao dịch chuyển khoản sang giao dịch thường'
+                        };
+                    }
+                }
+
                 if (currentTransferWalletId) {
                     // Force system category "Chuyển tiền"
                     const normalizedCategoryName = normalizeVietnamese("Chuyển tiền");
@@ -428,6 +470,15 @@ export const transactionController = {
                         }
                         currentCategory = newCategory;
                         currentCategoryId = newCategory.id;
+                    }
+                }
+
+                if (!currentTransferWalletId && currentCategory) {
+                    if (currentCategory.user_id === null && currentCategory.name_normalized === normalizeVietnamese("Chuyển tiền")) {
+                        throw {
+                            status: 400,
+                            message: 'Danh mục "Chuyển tiền" chỉ dành cho giao dịch chuyển khoản'
+                        };
                     }
                 }
 
@@ -511,8 +562,13 @@ export const transactionController = {
             // Note: Kiểm tra cảnh báo ngân sách sau khi cập nhật giao dịch
             if (result.updatedTx.categories && result.updatedTx.categories.type === 'EXPENSE') {
                 await checkBudgetAlerts(userId, result.updatedTx.category_id);
+                await syncBudgetsAfterTransactionChange(userId, result.updatedTx.category_id, result.updatedTx.transaction_date);
             }
-
+            // Đồng bộ cho cả khoảng thời gian/danh mục cũ của giao dịch (nếu có thay đổi)
+            if (oldTx.categories && oldTx.categories.type === 'EXPENSE') {
+                await syncBudgetsAfterTransactionChange(userId, oldTx.category_id, oldTx.transaction_date);
+            }
+ 
             return jsonResponse(
                 res,
                 200,
@@ -534,6 +590,7 @@ export const transactionController = {
         try {
             const userId = req.user.id;
             const txId = parseInt(req.params.id);
+            let deletedTxInfo = null;
             await prisma.$transaction(async (txDb) => {
                 // Note: Lấy transaction cũ kèm category
                 const transaction = await txDb.transactions.findUnique({
@@ -550,6 +607,11 @@ export const transactionController = {
                         message: 'Không tìm thấy giao dịch'
                     };
                 }
+                deletedTxInfo = {
+                    category_id: transaction.category_id,
+                    transaction_date: transaction.transaction_date,
+                    isExpense: transaction.categories?.type === 'EXPENSE'
+                };
                 if (transaction.user_id !== userId) {
                     throw {
                         status: 403,
@@ -622,6 +684,11 @@ export const transactionController = {
                     }
                 });
             });
+
+            if (deletedTxInfo && deletedTxInfo.isExpense) {
+                await syncBudgetsAfterTransactionChange(userId, deletedTxInfo.category_id, deletedTxInfo.transaction_date);
+            }
+
             return jsonResponse(
                 res,
                 200,

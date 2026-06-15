@@ -1,5 +1,6 @@
 import {jsonResponse} from '../utils/responseHelper.js';
 import {prisma} from '../config/database.js';
+import {normalizeVietnamese} from '../utils/stringUtils.js';
 
 
 export const walletController = {
@@ -94,6 +95,9 @@ export const walletController = {
             if (balance !== undefined && Number(balance) < 0) {
                 return jsonResponse(res, 400, 'Số dư (balance) không được âm', null);
             }
+            if (currency && currency !== 'VND') {
+                return jsonResponse(res, 400, 'Hệ thống hiện tại chỉ hỗ trợ đơn vị tiền tệ VND', null);
+            }
 
             // Giới hạn số lượng ví cho tài khoản FREE (tối đa 2 ví)
             if (req.user.type === 'FREE') {
@@ -155,6 +159,19 @@ export const walletController = {
             if (wallet.user_id !== userId) {
                 return jsonResponse(res, 403, 'Bạn không có quyền xoá ví của người khác', null);
             }
+
+            const transactionCount = await prisma.transactions.count({
+                where: {
+                    OR: [
+                        { wallet_id: wallet.id },
+                        { transfer_wallet_id: wallet.id }
+                    ]
+                }
+            });
+            if (transactionCount > 0) {
+                return jsonResponse(res, 400, 'Không thể xóa ví vì ví đã phát sinh giao dịch hoặc giao dịch chuyển khoản', null);
+            }
+
             await prisma.wallets.delete({
                 where: {
                     id: wallet.id,
@@ -205,21 +222,85 @@ export const walletController = {
             if (type && ['CASH', 'BANK_ACCOUNT', 'E_WALLET'].includes(type.toUpperCase())) {
                 dataToUpdate.type = type.toUpperCase();
             }
-            if (balance !== undefined && !isNaN(Number(balance)) && Number(balance) >= 0) {
-                dataToUpdate.balance = Number(balance);
+            let needsAdjustment = false;
+            let diff = 0;
+            const balanceVal = balance !== undefined ? Number(balance) : undefined;
+            if (balanceVal !== undefined && !isNaN(balanceVal) && balanceVal >= 0) {
+                if (balanceVal !== Number(wallet.balance)) {
+                    needsAdjustment = true;
+                    diff = balanceVal - Number(wallet.balance);
+                    dataToUpdate.balance = balanceVal;
+                }
             }
             if (status && ['ACTIVATE', 'DISABLED'].includes(status.toUpperCase())) {
                 dataToUpdate.status = status.toUpperCase();
             }
             if (currency) {
+                if (currency !== 'VND') {
+                    return jsonResponse(res, 400, 'Hệ thống hiện tại chỉ hỗ trợ đơn vị tiền tệ VND', null);
+                }
                 dataToUpdate.currency = currency;
             }
-            const updatedWallet = await prisma.wallets.update({
-                where: {
-                    id: wallet.id,
-                },
-                data: dataToUpdate,
-            });
+
+            let updatedWallet;
+            if (needsAdjustment) {
+                updatedWallet = await prisma.$transaction(async (tx) => {
+                    const type = diff > 0 ? 'INCOME' : 'EXPENSE';
+                    const amount = Math.abs(diff);
+                    const categoryName = diff > 0 ? 'Điều chỉnh tăng số dư' : 'Điều chỉnh giảm số dư';
+                    const normalizedCategoryName = normalizeVietnamese(categoryName);
+
+                    // Lấy hoặc tạo danh mục hệ thống công khai
+                    let category = await tx.categories.findFirst({
+                        where: {
+                            name_normalized: normalizedCategoryName,
+                            user_id: null
+                        }
+                    });
+                    if (!category) {
+                        category = await tx.categories.create({
+                            data: {
+                                name: categoryName,
+                                name_normalized: normalizedCategoryName,
+                                type: type,
+                                user_id: null,
+                                status: 'ACTIVATE'
+                            }
+                        });
+                    }
+
+                    // Tạo giao dịch điều chỉnh
+                    await tx.transactions.create({
+                        data: {
+                            user_id: userId,
+                            wallet_id: wallet.id,
+                            category_id: category.id,
+                            amount: amount,
+                            transaction_date: new Date(),
+                            note: 'Điều chỉnh số dư ví',
+                            currency: 'VND',
+                            source: 'MANUAL',
+                            status: 'ACTIVATE'
+                        }
+                    });
+
+                    // Cập nhật số dư ví
+                    return await tx.wallets.update({
+                        where: {
+                            id: wallet.id
+                        },
+                        data: dataToUpdate
+                    });
+                });
+            } else {
+                updatedWallet = await prisma.wallets.update({
+                    where: {
+                        id: wallet.id,
+                    },
+                    data: dataToUpdate,
+                });
+            }
+
             return jsonResponse(res, 200, 'Thành công', updatedWallet);
         } catch (error) {
             if (error.code === '23505') {

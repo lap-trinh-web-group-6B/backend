@@ -17,15 +17,24 @@ export const statisticsController = {
             });
 
             const whereCondition = {
-                user_id: userId
+                user_id: userId,
+                transfer_wallet_id: null
             };
             if (from_date || to_date) {
                 whereCondition.transaction_date = {};
                 if (from_date) {
-                    whereCondition.transaction_date.gte = new Date(from_date);
+                    const start = new Date(from_date);
+                    if (typeof from_date === 'string' && from_date.length <= 10) {
+                        start.setUTCHours(0, 0, 0, 0);
+                    }
+                    whereCondition.transaction_date.gte = start;
                 }
                 if (to_date) {
-                    whereCondition.transaction_date.lte = new Date(to_date);
+                    const end = new Date(to_date);
+                    if (typeof to_date === 'string' && to_date.length <= 10) {
+                        end.setUTCHours(23, 59, 59, 999);
+                    }
+                    whereCondition.transaction_date.lte = end;
                 }
             }
 
@@ -82,6 +91,7 @@ export const statisticsController = {
             const { type = 'EXPENSE', from_date, to_date } = req.query;
             const whereClause = {
                 user_id: userId,
+                transfer_wallet_id: null,
                 categories: {
                     type
                 }
@@ -89,10 +99,18 @@ export const statisticsController = {
             if (from_date || to_date) {
                 whereClause.transaction_date = {};
                 if (from_date) {
-                    whereClause.transaction_date.gte = new Date(from_date);
+                    const start = new Date(from_date);
+                    if (typeof from_date === 'string' && from_date.length <= 10) {
+                        start.setUTCHours(0, 0, 0, 0);
+                    }
+                    whereClause.transaction_date.gte = start;
                 }
                 if (to_date) {
-                    whereClause.transaction_date.lte = new Date(to_date);
+                    const end = new Date(to_date);
+                    if (typeof to_date === 'string' && to_date.length <= 10) {
+                        end.setUTCHours(23, 59, 59, 999);
+                    }
+                    whereClause.transaction_date.lte = end;
                 }
             }
             const stats = await prisma.transactions.groupBy({
@@ -150,12 +168,15 @@ export const statisticsController = {
 
             const dateTruncFormat = period === 'monthly' ? 'month' : 'day';
 
-            let conditions = [`tx.user_id = ${userId}`];
+            let conditions = [`tx.user_id = ${userId}`, `tx.transfer_wallet_id IS NULL`];
 
             if (from_date) {
                 const parsedFrom = new Date(from_date);
                 if (isNaN(parsedFrom.getTime())) {
                     return jsonResponse(res, 400, 'from_date không hợp lệ', null);
+                }
+                if (typeof from_date === 'string' && from_date.length <= 10) {
+                    parsedFrom.setUTCHours(0, 0, 0, 0);
                 }
                 conditions.push(
                     `tx.transaction_date >= '${parsedFrom.toISOString()}'`
@@ -166,6 +187,9 @@ export const statisticsController = {
                 const parsedTo = new Date(to_date);
                 if (isNaN(parsedTo.getTime())) {
                     return jsonResponse(res, 400, 'to_date không hợp lệ', null);
+                }
+                if (typeof to_date === 'string' && to_date.length <= 10) {
+                    parsedTo.setUTCHours(23, 59, 59, 999);
                 }
                 conditions.push(
                     `tx.transaction_date <= '${parsedTo.toISOString()}'`
@@ -238,6 +262,7 @@ export const statisticsController = {
             });
             const transactionWhere = {
                 user_id: userId,
+                transfer_wallet_id: null,
                 categories: {
                     type: 'EXPENSE'
                 }
@@ -245,10 +270,18 @@ export const statisticsController = {
             if (from_date || to_date) {
                 transactionWhere.transaction_date = {};
                 if (from_date) {
-                    transactionWhere.transaction_date.gte = new Date(from_date);
+                    const start = new Date(from_date);
+                    if (typeof from_date === 'string' && from_date.length <= 10) {
+                        start.setUTCHours(0, 0, 0, 0);
+                    }
+                    transactionWhere.transaction_date.gte = start;
                 }
                 if (to_date) {
-                    transactionWhere.transaction_date.lte = new Date(to_date);
+                    const end = new Date(to_date);
+                    if (typeof to_date === 'string' && to_date.length <= 10) {
+                        end.setUTCHours(23, 59, 59, 999);
+                    }
+                    transactionWhere.transaction_date.lte = end;
                 }
             }
             const totalExpenseResult = await prisma.transactions.aggregate({
@@ -277,15 +310,24 @@ export const statisticsController = {
             const userId = req.user.id;
             const { from_date, to_date } = req.query;
             const whereCondition = {
-                user_id: userId
+                user_id: userId,
+                transfer_wallet_id: null
             };
             if (from_date || to_date) {
                 whereCondition.transaction_date = {};
                 if (from_date) {
-                    whereCondition.transaction_date.gte = new Date(from_date);
+                    const start = new Date(from_date);
+                    if (typeof from_date === 'string' && from_date.length <= 10) {
+                        start.setUTCHours(0, 0, 0, 0);
+                    }
+                    whereCondition.transaction_date.gte = start;
                 }
                 if (to_date) {
-                    whereCondition.transaction_date.lte = new Date(to_date);
+                    const end = new Date(to_date);
+                    if (typeof to_date === 'string' && to_date.length <= 10) {
+                        end.setUTCHours(23, 59, 59, 999);
+                    }
+                    whereCondition.transaction_date.lte = end;
                 }
             }
             const stats = await prisma.transactions.groupBy({

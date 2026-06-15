@@ -224,8 +224,8 @@ export const authController = {
             const user = await prisma.users.findUnique({
                 where: { id: decoded.id }
             });
-            if (!user || user.refreshToken !== refreshToken) {
-                return jsonResponse(res, 401, 'Token không hợp lệ', null);
+            if (!user || user.status !== 'ACTIVATE' || user.refreshToken !== refreshToken) {
+                return jsonResponse(res, 401, 'Token không hợp lệ hoặc tài khoản đã bị khóa', null);
             }
             const newAccessToken = generateAccessToken(user);
             return jsonResponse(res, 200, 'Refresh thành công', {
