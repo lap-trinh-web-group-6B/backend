@@ -115,7 +115,7 @@ export const categoryController = {
             });
 
             if (existingSystemCategory) {
-                return jsonResponse(res, 400, 'Lỗi', {name: 'Tên danh mục trùng với danh mục hệ thống'});
+                return jsonResponse(res, 400, 'Tên danh mục trùng với danh mục hệ thống', null);
             }
 
             const existingUserCategory = await prisma.categories.findFirst({
@@ -126,7 +126,7 @@ export const categoryController = {
             });
 
             if (existingUserCategory) {
-                return jsonResponse(res, 400, 'Lỗi', {name: 'Bạn đã tạo danh mục với tên này trước đó'});
+                return jsonResponse(res, 400, 'Bạn đã tạo danh mục với tên này trước đó', null);
             }
             const newCategory = await prisma.categories.create({
                 data: {
@@ -177,7 +177,7 @@ export const categoryController = {
                     }
                 });
                 if (existingSystemCategory) {
-                    return jsonResponse(res, 400, 'Lỗi', {name: 'Tên danh mục trùng với danh mục hệ thống'});
+                    return jsonResponse(res, 400, 'Tên danh mục trùng với danh mục hệ thống', null);
                 }
                 const existingUserCategory = await prisma.categories.findFirst({
                     where: {
@@ -189,7 +189,7 @@ export const categoryController = {
                     }
                 });
                 if (existingUserCategory) {
-                    return jsonResponse(res, 400, 'Lỗi', {name: 'Bạn đã tạo danh mục với tên này trước đó'});
+                    return jsonResponse(res, 400, 'Bạn đã tạo danh mục với tên này trước đó', null);
                 }
                 dataToUpdate.name = name;
                 dataToUpdate.name_normalized = normalizedName;

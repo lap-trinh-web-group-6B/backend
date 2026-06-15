@@ -25,7 +25,7 @@ export const userController= {
         try {
             const {fullName} = req.body;
             if (!fullName || typeof fullName !== 'string' || fullName.trim() === '') {
-                return jsonResponse(res, 400, 'Lỗi', {fullName: 'Tên không hợp lệ'});
+                return jsonResponse(res, 400, 'Tên không hợp lệ', null);
             }
             const user = await prisma.users.findUnique({
                 where: {
@@ -54,7 +54,7 @@ export const userController= {
         try {
             const {status} = req.body;
             if (!['ACTIVATE', 'DISABLE', 'CANCEL'].includes(status)) {
-                return jsonResponse(res, 400, 'Lỗi', {status: 'Trạng thái không hợp lệ'});
+                return jsonResponse(res, 400, 'Trạng thái không hợp lệ', null);
             }
             const user = await prisma.users.findUnique({
                 where: {
@@ -96,10 +96,10 @@ export const userController= {
 
             const isPasswordValid = await argon2.verify(user.password, currentPassword);
             if (!isPasswordValid) {
-                return jsonResponse(res, 400, 'Lỗi', {currentPassword: 'Mật khẩu hiện tại không đúng'});
+                return jsonResponse(res, 400, 'Mật khẩu hiện tại không đúng', null);
             }
             if (newPassword !== confirmPassword) {
-                return jsonResponse(res, 400, 'Lỗi', {confirmPassword: 'Mật khẩu xác nhận không khớp'});
+                return jsonResponse(res, 400, 'Mật khẩu xác nhận không khớp', null);
             }
             const newHashedPassword = await argon2.hash(newPassword);
             await prisma.users.update({

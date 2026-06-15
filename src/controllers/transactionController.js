@@ -124,10 +124,7 @@ export const transactionController = {
             const { wallet_id, category_id, amount, transaction_date, note, currency, transfer_wallet_id } = req.body;
             console.log('Body: ', req.body);
             if (!wallet_id || (!category_id && !transfer_wallet_id) || amount === undefined || !transaction_date) {
-                return jsonResponse(res, 400, 'Lỗi', {
-                    status: 400,
-                    message: 'Thiếu thông tin bắt buộc (wallet_id, category_id hoặc transfer_wallet_id, amount, transaction_date)'
-                });
+                return jsonResponse(res, 400, 'Thiếu thông tin bắt buộc (wallet_id, category_id hoặc transfer_wallet_id, amount, transaction_date)', null);
             }
             const amt = parseFloat(amount);
             if (isNaN(amt) || amt <= 0) {

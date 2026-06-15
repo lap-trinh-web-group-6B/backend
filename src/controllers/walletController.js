@@ -83,16 +83,16 @@ export const walletController = {
             const userId = req.user.id;
             const { name, type, balance, currency } = req.body;
             if (!name || !type) {
-                return jsonResponse(res, 400, 'Lỗi', { message: 'Tên ví (name) và loại ví (type) là bắt buộc' });
+                return jsonResponse(res, 400, 'Tên ví (name) và loại ví (type) là bắt buộc', null);
             }
             if (!['CASH', 'BANK_ACCOUNT', 'E_WALLET'].includes(type.toUpperCase())) {
-                return jsonResponse(res, 400, 'Lỗi', { message: 'Loại ví (type) không hợp lệ' });
+                return jsonResponse(res, 400, 'Loại ví (type) không hợp lệ', null);
             }
             if (balance !== undefined && isNaN(Number(balance))) {
-                return jsonResponse(res, 400, 'Lỗi', { message: 'Số dư (balance) phải là một con số' });
+                return jsonResponse(res, 400, 'Số dư (balance) phải là một con số', null);
             }
             if (balance !== undefined && Number(balance) < 0) {
-                return jsonResponse(res, 400, 'Lỗi', { message: 'Số dư (balance) không được âm' });
+                return jsonResponse(res, 400, 'Số dư (balance) không được âm', null);
             }
 
             // Giới hạn số lượng ví cho tài khoản FREE (tối đa 2 ví)
@@ -117,7 +117,7 @@ export const walletController = {
                 },
             });
             if (existingWallet) {
-                return jsonResponse(res, 400, 'Lỗi', { name: 'Tên ví đã tồn tại' });
+                return jsonResponse(res, 400, 'Tên ví đã tồn tại', null);
             }
             const newWallet = await prisma.wallets.create({
                 data: {
@@ -133,7 +133,7 @@ export const walletController = {
 
         } catch (error) {
             if (error.code === 'P2002') {
-                return jsonResponse(res, 400, 'Lỗi', { name: 'Tên ví đã tồn tại' });
+                return jsonResponse(res, 400, 'Tên ví đã tồn tại', null);
             }
             console.error('[WalletController] createWallet error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi tạo ví mới', null);
@@ -198,7 +198,7 @@ export const walletController = {
                 });
 
                 if (existingWallet) {
-                    return jsonResponse(res, 400, 'Lỗi', { name: 'Tên ví đã tồn tại' });
+                    return jsonResponse(res, 400, 'Tên ví đã tồn tại', null);
                 }
                 dataToUpdate.name = name.trim();
             }
@@ -223,7 +223,7 @@ export const walletController = {
             return jsonResponse(res, 200, 'Thành công', updatedWallet);
         } catch (error) {
             if (error.code === '23505') {
-                return jsonResponse(res, 400, 'Lỗi', { name: 'Tên ví đã tồn tại' });
+                return jsonResponse(res, 400, 'Tên ví đã tồn tại', null);
             }
             console.error('[WalletController] updateWallet error:', error);
             return jsonResponse(res, 500, 'Lỗi server khi cập nhật ví', null);
