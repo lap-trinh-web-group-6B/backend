@@ -512,16 +512,25 @@ export const checkBudgetAlerts = async (userId, categoryId) => {
             );
 
             if (currentSpent >= limit) {
-                // Kiểm tra xem đã gửi cảnh báo vượt hạn mức chưa
+                // Kiểm tra xem đã gửi cảnh báo vượt hạn mức chưa cho danh mục này
                 const existingExceededWarning = await prisma.notifications.findFirst({
                     where: {
                         user_id: userId,
                         type: 'WARNING',
                         status: 'ACTIVE',
                         title: 'Cảnh báo vượt ngân sách',
-                        message: {
-                            contains: `đã tiêu vượt quá hạn mức`
-                        },
+                        AND: [
+                            {
+                                message: {
+                                    contains: `đã tiêu vượt quá hạn mức`
+                                }
+                            },
+                            {
+                                message: {
+                                    endsWith: `cho danh mục: ${categoryName}`
+                                }
+                            }
+                        ],
                         created_at: {
                             gte: budget.start_date
                         }
@@ -552,7 +561,7 @@ export const checkBudgetAlerts = async (userId, categoryId) => {
                         status: 'ACTIVE',
                         title: 'Cảnh báo vượt ngân sách',
                         message: {
-                            contains: `danh mục: ${categoryName}`
+                            endsWith: `cho danh mục: ${categoryName}`
                         },
                         created_at: {
                             gte: budget.start_date
