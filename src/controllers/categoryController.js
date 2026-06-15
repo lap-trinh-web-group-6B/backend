@@ -10,7 +10,22 @@ export const categoryController = {
         try {
             const userId = req.user.id;
             const {page = 1, limit = 20, sort, search, type, source} = req.query;
-            const where = {};
+            const excludedNames = [
+                normalizeVietnamese("Chuyển tiền"),
+                normalizeVietnamese("Điều chỉnh tăng số dư"),
+                normalizeVietnamese("Điều chỉnh giảm số dư")
+            ];
+
+            const where = {
+                name_normalized: {
+                    notIn: excludedNames,
+                    ...(search && {
+                        contains: normalizeVietnamese(search),
+                        mode: 'insensitive'
+                    })
+                }
+            };
+
             if (source === 'system') {
                 where.user_id = null;
             } else if (source === 'mine') {
@@ -23,14 +38,6 @@ export const categoryController = {
             }
             if (type) {
                 where.type = type;
-            }
-            if (search) {
-                const normalizedSearch = normalizeVietnamese(search);
-
-                where.name_normalized = {
-                    contains: normalizedSearch,
-                    mode: 'insensitive'
-                };
             }
             let orderBy = {
                 createdAt: 'desc'
